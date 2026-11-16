@@ -1,0 +1,36 @@
+/* Scinai Signature design tokens.
+ * Colors are interpreted from the Scinai website, not an official brand guide.
+ * Secondary text and rose text are darkened slightly from the prototype to meet WCAG AA. */
+:root {
+  --plum: #4c1045;
+  --plum-hover: #3c0c37;
+  --rose: #b96d80; /* decorative: icons, accents */
+  --rose-text: #a85a6f; /* rose used for text (4.8:1 on white) */
+  --pale: #f4e6eb;
+  --pale-strong: #ead3dc;
+  --white: #ffffff;
+  --ink: #342c34;
+  --muted: #6b6169; /* prototype #756b74, darkened for AA on pale backgrounds */
+  --line: #eae2e7;
+  --line-strong: #d9c2ce;
+  --high: #a44260;
+  --overdue: #a3243b;
+  --overdue-bg: #fbecef;
+  --ok: #2f6b4f;
+
+  --font-head: 'Montserrat', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  --font-body: 'Lato', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+
+  --radius: 4px;
+  --radius-pill: 999px;
+  --touch: 44px;
+
+  --page-max: 1180px;
+  --gutter: 38px;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --gutter: 20px;
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+*.log
+# Never commit task data exports
+scinai-maintenance-backup-*.json
