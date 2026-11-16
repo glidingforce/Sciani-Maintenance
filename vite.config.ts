@@ -10,6 +10,15 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig({
   base: './',
   plugins: [react(), viteSingleFile()],
+  resolve: {
+    // jsPDF's HTML-rendering add-ons are not used (reports are drawn directly);
+    // stubbing them keeps the single-file app small.
+    alias: {
+      html2canvas: '/src/stubs/empty.ts',
+      dompurify: '/src/stubs/empty.ts',
+      canvg: '/src/stubs/empty.ts',
+    },
+  },
   build: {
     outDir: 'docs',
     emptyOutDir: true,

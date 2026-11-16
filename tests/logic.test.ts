@@ -135,3 +135,39 @@ describe('Today grouping and quick actions', () => {
     expect(morningSummary({ high: 0, dueToday: 0, overdue: 0, withOthers: 0 }, 0)).toMatch(/Nothing due today/);
   });
 });
+
+import { classify, dailyList } from '../src/lib/tasks';
+
+describe('daily list', () => {
+  const mk = (title: string, extra = {}) => newTask({ title, ...extra });
+  it('puts each task in exactly one group, the most urgent, with all reasons', () => {
+    const tasks = [
+      mk('overdue+fu', { dueDate: '2026-11-10', nextFollowUp: '2026-11-18' }),
+      mk('fu due', { nextFollowUp: today, dueDate: '2026-11-30' }),
+      mk('due soon', { dueDate: '2026-11-19' }),
+      mk('fu soon', { nextFollowUp: '2026-11-17' }),
+      mk('no dates'),
+      mk('far', { dueDate: '2026-12-31' }),
+      mk('project quiet', { kind: 'project', nextAction: 'x', milestoneDate: '2027-01-15' }),
+      mk('project due', { kind: 'project', nextAction: 'Book crane', milestoneDate: today }),
+      complete(mk('done overdue', { dueDate: '2026-11-01' })),
+      setArchived(mk('archived'), true),
+    ];
+    const l = dailyList(tasks, today);
+    const titles = (g: keyof typeof l) => l[g].map((i) => i.task.title);
+    expect(titles('attention').sort()).toEqual(['fu due', 'overdue+fu', 'project due']);
+    expect(titles('coming').sort()).toEqual(['due soon', 'fu soon']);
+    expect(titles('unscheduled')).toEqual(['no dates']);
+    expect(titles('later')).toEqual(['far']);
+    expect(titles('longterm')).toEqual(['project quiet']);
+    const all = Object.values(l).flat();
+    expect(all).toHaveLength(8);
+    expect(new Set(all.map((i) => i.task.id)).size).toBe(8);
+    expect(classify(tasks[0], today).reasons.map((r) => r.label)).toEqual(['Overdue · 10 Nov', 'Follow-up 18 Nov']);
+    expect(classify(tasks[1], today).reasons.map((r) => r.label)).toEqual(['Due 30 Nov', 'Follow-up due']);
+  });
+  it('blocked is shown only when a blocker is recorded, not for every waiting task', () => {
+    expect(classify(mk('w', { status: 'waiting' }), today).reasons.some((r) => r.label === 'Blocked')).toBe(false);
+    expect(classify(mk('b', { status: 'waiting', blocker: 'No PO' }), today).reasons.some((r) => r.label === 'Blocked')).toBe(true);
+  });
+});

@@ -1,0 +1,53 @@
+{
+  "tasks": [
+    {
+      "id": "t-1",
+      "title": "Calibrate WFI loop sensor",
+      "priority": "high",
+      "status": "In progress",
+      "dueDate": "2026-11-20T00:00:00+02:00",
+      "customField": {
+        "keep": true
+      }
+    },
+    {
+      "id": "t-2",
+      "title": "בדיקת לחץ בקיטור נקי",
+      "priority": "urgent",
+      "status": "completed",
+      "dueDate": "next week",
+      "notes": "טקסט בעברית 123 · mixed"
+    },
+    {
+      "title": "No id here",
+      "status": "todo"
+    },
+    {
+      "id": "t-4",
+      "title": "Duplicate older",
+      "updatedAt": "2026-11-01T10:00:00.000Z"
+    },
+    {
+      "id": "t-4",
+      "title": "Duplicate newer",
+      "updatedAt": "2026-11-10T10:00:00.000Z",
+      "contactId": "missing-contact"
+    },
+    {
+      "id": "t-6",
+      "status": "blocked"
+    }
+  ],
+  "contacts": [
+    {
+      "id": "c-1",
+      "name": "Supplier A",
+      "type": "supplier",
+      "phone": "03-1234567"
+    },
+    {
+      "id": "c-2",
+      "company": "Only company Ltd"
+    }
+  ]
+}

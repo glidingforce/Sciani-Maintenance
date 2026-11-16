@@ -1,5 +1,5 @@
 import type { Contact, DateOnly, FollowUpEntry, Priority, Task } from '../types';
-import { addDays, todayISO } from './dates';
+import { addDays, relativeDate, shortDate, todayISO } from './dates';
 
 export const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -165,7 +165,7 @@ export function doneToday(tasks: Task[], today: DateOnly): Task[] {
     .sort((a, b) => (b.completedAt! > a.completedAt! ? 1 : -1));
 }
 
-export type QuickAction = 'start' | 'waiting' | 'todo' | 'tomorrow' | 'nextweek' | 'high' | 'normal';
+export type QuickAction = 'start' | 'waiting' | 'todo' | 'done' | 'tomorrow' | 'nextweek' | 'high' | 'normal';
 
 export function applyQuick(t: Task, action: QuickAction, today: DateOnly): Task {
   const base = { ...t, updatedAt: new Date().toISOString() };
@@ -176,6 +176,8 @@ export function applyQuick(t: Task, action: QuickAction, today: DateOnly): Task 
       return { ...base, status: 'waiting' };
     case 'todo':
       return { ...base, status: 'todo' };
+    case 'done':
+      return complete(t);
     case 'tomorrow':
       return { ...base, dueDate: addDays(today, 1) };
     case 'nextweek':
@@ -196,4 +198,125 @@ export function morningSummary(c: DailyCounts, followUpsDue: number): string {
   if (!parts.length) return 'Nothing due today. A good day for long-term work.';
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
   return `You have ${list}.`;
+}
+
+// ---------- Daily list (one entry per task) ----------
+
+export type DailyGroup = 'attention' | 'coming' | 'unscheduled' | 'later' | 'longterm';
+export type ReasonTone = 'urgent' | 'today' | 'soon' | 'info';
+
+export interface Reason {
+  label: string;
+  tone: ReasonTone;
+}
+
+export interface DailyItem {
+  task: Task;
+  group: DailyGroup;
+  reasons: Reason[];
+  /** Earliest relevant date, used for ordering inside a group. */
+  sortDate: string;
+}
+
+/** The work deadline: due date, or for long-term work its milestone. */
+export const workDate = (t: Task): DateOnly | undefined => t.dueDate ?? (t.kind === 'project' ? t.milestoneDate : undefined);
+
+function soonLabel(prefix: string, date: DateOnly, today: DateOnly) {
+  const rel = relativeDate(date, today);
+  return rel === 'Tomorrow' ? `${prefix} tomorrow` : `${prefix} ${rel}`;
+}
+
+/**
+ * Decides the single group a task belongs to, and every reason it is there.
+ * Most urgent group wins: attention > coming up > (later | not scheduled | long-term).
+ */
+export function classify(t: Task, today: DateOnly): DailyItem {
+  const week = addDays(today, 7);
+  const reasons: Reason[] = [];
+  const work = workDate(t);
+  const fu = t.nextFollowUp;
+  const workWord = t.kind === 'project' ? 'Milestone' : 'Due';
+
+  let attention = false;
+  let coming = false;
+  if (work) {
+    if (work < today) {
+      reasons.push({ label: `Overdue · ${shortDate(work, today)}`, tone: 'urgent' });
+      attention = true;
+    } else if (work === today) {
+      reasons.push({ label: `${workWord} today`, tone: 'today' });
+      attention = true;
+    } else if (work <= week) {
+      reasons.push({ label: soonLabel(workWord, work, today), tone: 'soon' });
+      coming = true;
+    } else {
+      reasons.push({ label: `${workWord} ${shortDate(work, today)}`, tone: 'info' });
+    }
+  }
+  if (fu) {
+    if (fu < today) {
+      reasons.push({ label: `Follow-up overdue · ${shortDate(fu, today)}`, tone: 'urgent' });
+      attention = true;
+    } else if (fu === today) {
+      reasons.push({ label: 'Follow-up due', tone: 'today' });
+      attention = true;
+    } else if (fu <= week) {
+      reasons.push({ label: soonLabel('Follow-up', fu, today), tone: 'soon' });
+      coming = true;
+    } else {
+      reasons.push({ label: `Follow-up ${shortDate(fu, today)}`, tone: 'info' });
+    }
+  }
+  if (t.blocker) reasons.push({ label: 'Blocked', tone: 'urgent' });
+
+  const group: DailyGroup = attention
+    ? 'attention'
+    : coming
+      ? 'coming'
+      : t.kind === 'project'
+        ? 'longterm'
+        : work || fu
+          ? 'later'
+          : 'unscheduled';
+  const sortDate = [work, fu].filter(Boolean).sort()[0] ?? '9999-12-31';
+  return { task: t, group, reasons, sortDate };
+}
+
+const URGENCY: Record<ReasonTone, number> = { urgent: 0, today: 1, soon: 2, info: 3 };
+
+/** Builds the daily list: every open task exactly once. */
+export function dailyList(tasks: Task[], today: DateOnly, filter: OwnerFilter = 'all'): Record<DailyGroup, DailyItem[]> {
+  const out: Record<DailyGroup, DailyItem[]> = { attention: [], coming: [], unscheduled: [], later: [], longterm: [] };
+  for (const t of tasks) {
+    if (!isOpen(t) || !matchesOwner(t, filter)) continue;
+    const item = classify(t, today);
+    out[item.group].push(item);
+  }
+  const rank = (i: DailyItem) => Math.min(...i.reasons.map((r) => URGENCY[r.tone]), 9);
+  for (const list of Object.values(out)) {
+    list.sort((a, b) => {
+      const u = rank(a) - rank(b);
+      if (u) return u;
+      const p = PRIORITY_RANK[a.task.priority] - PRIORITY_RANK[b.task.priority];
+      if (p) return p;
+      if (a.sortDate !== b.sortDate) return a.sortDate < b.sortDate ? -1 : 1;
+      return a.task.createdAt < b.task.createdAt ? -1 : 1;
+    });
+  }
+  return out;
+}
+
+/** "Waiting for cooling contractor · a quotation", from recorded fields only (nothing inferred). */
+export function waitingText(t: Task): string | undefined {
+  if (t.status !== 'waiting') return undefined;
+  const parts = [t.waitingFor ? `Waiting for ${t.waitingFor}` : 'Waiting', t.waitingWhat].filter(Boolean);
+  return parts.join(' · ');
+}
+
+/** True when the record lacks something that would make it actionable. */
+export function needsDetails(t: Task): string | undefined {
+  if (t.status === 'waiting' && !t.waitingFor) return 'Add who you are waiting for';
+  if (t.status === 'waiting' && !t.nextFollowUp) return 'Add a follow-up date';
+  if (!t.nextAction && (t.kind === 'project' || t.status === 'waiting')) return 'Add a next action';
+  return undefined;
 }

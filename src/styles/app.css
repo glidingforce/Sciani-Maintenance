@@ -1230,3 +1230,199 @@ dialog.sheet::backdrop {
     margin-top: -2px;
   }
 }
+
+/* ---------- Restore preview ---------- */
+.restore-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--today-bg);
+}
+.restore-preview ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.btn-danger-fill {
+  background: var(--overdue);
+  border-color: var(--overdue);
+}
+.btn-danger-fill:hover {
+  background: #861c30;
+}
+
+/* ---------- Compact day header (update 2) ---------- */
+.day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.day-title {
+  font-family: var(--font-head);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--plum);
+  letter-spacing: -0.2px;
+}
+.day-summary {
+  font-size: 15px;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.storage-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+.day-actions {
+  display: flex;
+  gap: 8px;
+}
+.list-head {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 4px;
+}
+.main {
+  max-width: 920px;
+}
+.group-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -2px 0 4px;
+}
+.group.attention .group-head {
+  color: var(--plum);
+  font-size: 13px;
+}
+.group.attention {
+  margin-bottom: 26px;
+}
+details.group > summary.group-head {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+/* Daily row */
+.task.daily {
+  grid-template-columns: 30px minmax(0, 1fr) 44px;
+}
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  align-items: center;
+  margin: 4px 0 2px;
+}
+.reason {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.reason.urgent {
+  color: var(--overdue);
+  background: var(--overdue-bg);
+}
+.reason.today {
+  color: var(--plum);
+  background: var(--pale);
+}
+.reason.soon,
+.reason.info {
+  color: var(--muted);
+  background: #f4f1f3;
+  font-weight: 400;
+}
+.priority.inline {
+  display: inline-flex;
+  margin: 0 0 0 2px;
+}
+.next {
+  font-size: 14.5px;
+  margin-top: 4px;
+  color: var(--ink);
+}
+.next b {
+  color: var(--plum);
+}
+.add-detail {
+  font-size: 13.5px;
+  min-height: 28px;
+}
+.row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.kind-tag {
+  display: inline-block;
+  font-family: var(--font-head);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--rose-text);
+  border: 1px solid var(--pale-strong);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-right: 7px;
+  vertical-align: 2px;
+}
+.waiting-box {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--amber-bg);
+}
+.quick-add .who {
+  width: 130px;
+}
+@media (max-width: 720px) {
+  .hide-sm {
+    display: none;
+  }
+  .day-title {
+    font-size: 18px;
+  }
+  .quick-add .who {
+    flex: 1;
+    width: auto;
+  }
+  .quick-controls {
+    flex-wrap: wrap;
+  }
+}
+
+/* Hebrew and mixed text: each line takes its direction from its own first letter,
+   so Hebrew reads right-to-left and English left-to-right, in rows and in inputs. */
+.task-title,
+.detail,
+.next,
+.wait-title,
+.project-title,
+.history li,
+.contact div,
+.restore-preview li,
+.agenda li span,
+input:not([type='date']):not([type='time']),
+textarea {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+@media (max-width: 720px) {
+  .quick-controls select {
+    flex: 1 1 100%;
+  }
+  .day-actions {
+    width: 100%;
+  }
+  .day-actions .btn {
+    flex: 1;
+  }
+}

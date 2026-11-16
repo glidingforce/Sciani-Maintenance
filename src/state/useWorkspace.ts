@@ -4,7 +4,9 @@ import type { Contact, Dataset, Task } from '../types';
 import { canSignIn, microsoftConfigured } from '../config';
 import { LocalRepo } from '../storage/localRepo';
 import { OneDriveRepo } from '../storage/oneDriveRepo';
-import { SaveError, type Repo, type StorageMode } from '../storage/repo';
+import { SAFETY_KEYS, SaveError, type Repo, type StorageMode } from '../storage/repo';
+import { makeBackup, planRestore, type RestoreMode } from '../lib/backup';
+import { backupFileName, downloadJson } from '../lib/download';
 import { SignInRequired, getToken, initAuth, signIn, signOut } from '../auth/msal';
 
 const DEMO_FLAG = 'scinai-maintenance:demo-mode';
@@ -140,22 +142,37 @@ export function useWorkspace() {
     [repo],
   );
 
+  /**
+   * Restores a validated, converted backup. Order of operations:
+   *  1. a copy of the current data is kept in this browser (and, for Replace, downloaded),
+   *  2. the new dataset is written in ONE write computed from the latest saved data,
+   *  3. only then the screen reloads. If step 2 fails, saved data is unchanged.
+   */
   const restore = useCallback(
-    async (backup: Dataset) => {
-      if (!repo?.replaceAll) return false;
+    async (backup: Dataset, restoreMode: RestoreMode): Promise<{ ok: boolean; message: string }> => {
+      if (!repo) return { ok: false, message: 'Storage is not ready.' };
       setSave({ kind: 'saving' });
       try {
-        await repo.replaceAll(backup);
+        const current = await repo.load();
+        const safety = makeBackup(current, mode);
+        try {
+          localStorage.setItem(SAFETY_KEYS.preRestore, JSON.stringify(safety));
+        } catch {
+          /* browser storage unavailable; the downloaded copy below still protects Replace */
+        }
+        if (restoreMode === 'replace') downloadJson(safety, backupFileName(mode, 'before-restore'));
+        await repo.apply((latest) => (restoreMode === 'merge' ? planRestore(latest, backup, 'merge').result : backup));
         await reload();
         setSave({ kind: 'saved' });
-        return true;
+        return { ok: true, message: 'Restored.' };
       } catch (e) {
-        setSave({ kind: 'error', message: message(e, 'Restore failed.') });
+        const msg = `${message(e, 'Restore failed.')} Your current data was not changed.`;
+        setSave({ kind: 'error', message: msg });
         await reload();
-        return false;
+        return { ok: false, message: msg };
       }
     },
-    [repo, reload],
+    [repo, reload, mode],
   );
 
   const setDemo = useCallback((on: boolean) => {

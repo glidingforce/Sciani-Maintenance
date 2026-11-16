@@ -46,7 +46,8 @@ describe('local storage', () => {
     const old = newTask({ title: 'old title' });
     await repo.saveTask(keep);
     await repo.saveTask({ ...old, title: 'edited' });
-    await repo.replaceAll({ tasks: [old], contacts: [] });
+    const { planRestore } = await import('../src/lib/backup');
+    await repo.apply((cur) => planRestore(cur, { tasks: [old], contacts: [] }, 'merge').result);
     const titles = (await repo.load()).tasks.map((t) => t.title).sort();
     expect(titles).toEqual(['created after backup', 'old title']);
   });

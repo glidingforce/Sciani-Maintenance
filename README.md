@@ -20,12 +20,48 @@ On iPhone: open the address in Safari, sign in, then Share → Add to Home Scree
 
 ## Today page
 
-- A one-line morning summary: overdue, due today, and follow-ups to make.
-- Count tiles (Overdue, Due today, High priority, With others). Tap a tile to show only those tasks; tap it again to show everything.
-- Quick add: type a task, pick Today / Tomorrow / Next week / No date and optionally High, then press Enter.
-- Open tasks are grouped as Overdue → Today → Next 7 days → Later or no date. Overdue rows have a red edge and High-priority rows a rose edge, and every row also says its priority in words.
-- The **⋯** menu on each row offers: start working, waiting on someone, move to tomorrow, move to next week, change priority.
-- "Done today" lists today's completed tasks so you can reopen one with a tap.
+One list, every open task exactly once, in the most urgent group that applies:
+
+1. **Needs attention:** work overdue or due today, and follow-ups due today or overdue.
+2. **Coming up:** work or follow-ups in the next 7 days.
+3. **Not scheduled:** open tasks with no due date and no follow-up date.
+4. **Later:** dates more than 7 days away (collapsed).
+5. **Long-term work:** projects without a near date (collapsed). A project moves up when its milestone or follow-up is due.
+
+Each row shows why it is there ("Overdue · 12 Nov", "Due today", "Follow-up due", "Blocked"), who it is waiting for and for what, and the next action. It also has buttons: Call (when a phone number is recorded), Log update, and the ⋯ menu. Records that are missing something useful show a small "+ Add …" link. Nothing is filled in automatically.
+
+Due date, follow-up date, responsible party and next action are separate fields. "Waiting" (on someone) and "Blocked" (a blocker is recorded) are tracked separately.
+
+## Management report (PDF)
+
+Export report → choose filters (all optional) → Create PDF. By default it includes every unfinished task, including waiting and unscheduled ones.
+- **Header:** Scinai logo, generation time, the filters applied, and counts (open, overdue, high priority, waiting, blocked).
+- **Columns:** task, area/equipment, responsible, status and priority, work due date, next action and follow-up date, blocker and management action.
+- **Layout:** landscape A4 with column headers repeated on every page, page numbers, and wrapped text. Hebrew and mixed Hebrew/English text are drawn right to left using the embedded Rubik font (SIL OFL).
+- **Not included:** contact phone numbers, e-mails and notes.
+- **Due-date filter:** using it excludes tasks that have no due date. The dialog and the report both say so.
+
+## Data format, upgrades and backups
+
+| Format | Where it came from | Accepted on restore |
+|---|---|---|
+| Schema 2 | This version: exports (`"version": 2`), browser storage (`"schemaVersion": 2`) and the OneDrive file | Yes |
+| Schema 1 | First release: exports (`"version": 1`) and the OneDrive file | Yes, converted |
+| No version | First release: raw browser storage `{ tasks, contacts }`, or hand-made files | Yes, converted |
+| Newer than 2 | A future version | No (the app asks you to update first) |
+
+Schema 2 only **adds** optional fields (`waitingFor`, `waitingWhat`, `blocker`, `managementAction`, and `nextAction` on any task). No fields were renamed or removed, so first-release records convert unchanged:
+- **Preserved:** IDs, titles, notes, dates, status, priority, contacts, links between tasks and contacts, follow-up history, Hebrew text, and any unknown fields.
+- **Normalized values:** priority and status values written differently (for example "high", "In progress", "completed") are mapped explicitly. Values that can't be mapped are kept under `_legacy` on the record, with a note.
+- **Dates:** date-only values are copied as text. A timestamp is cut to its own written date, never converted through a time zone. Non-dates are kept under `_legacy` and the field is left empty.
+- **Records:** a record with no ID gets a new ID, and a duplicated ID keeps the most recently updated copy, both with a note. An entry that isn't a record at all blocks the restore, so nothing is dropped silently.
+
+**In-place upgrade:** the first time this version opens older browser data, it saves an untouched copy (account menu → Data & backups → "Before the upgrade"), then rewrites the data in schema 2. Opening it again changes nothing. Older OneDrive files are converted in memory and rewritten on the next save; OneDrive's version history keeps the old file, and a copy is kept in the browser.
+
+**Restore:** the selected file is only read. It is validated and converted first, and a preview shows its record counts, conversion notes and the effect of the restore.
+- **Merge** matches by ID: it adds or updates and never deletes or duplicates.
+- **Replace** downloads a copy of your current data first.
+- Both keep a copy in the browser ("Before the last restore") and write the result in one step. If anything fails, current data is not changed.
 
 ## Storage behavior
 
@@ -33,7 +69,7 @@ On iPhone: open the address in Safari, sign in, then Share → Add to Home Scree
 - The app shows "Saved" only after OneDrive confirms. If a save fails (offline, sign-in expired, access refused), the change is undone on screen and the reason is shown.
 - Other devices see changes when the app is opened, brought back to the foreground, or reloaded.
 - **Backup:** account menu → Export backup (JSON). OneDrive's own version history also keeps earlier versions of the data file.
-- **Restore** adds or overwrites by ID and never deletes records. Use it to move test records from "This device only" into OneDrive.
+- To move records from "This device only" into OneDrive: Export backup, sign in, then Restore with **Merge**.
 - **Demo data** is kept in a separate browser key and never mixed with real records.
 
 ## If OneDrive refuses
@@ -91,9 +127,12 @@ src/
   lib/dates.ts         Asia/Jerusalem date handling
   auth/msal.ts         Microsoft sign-in
   storage/             OneDrive, local and demo storage
+  lib/backup.ts        schema versions, legacy conversion, restore planning
+  lib/report.ts        report selection and counts
+  report/              PDF builder, bidi handling, embedded fonts
   outlook/graph.ts     calendar calls
   state/               useWorkspace (data + save state), useOutlook
   styles/tokens.css    Scinai design tokens
-tests/                 unit tests (ordering, counts, follow-ups, storage, OneDrive merging, Outlook linking, DST)
+tests/                 unit tests incl. restore of real first-release backups (tests/fixtures)
 docs/                  the built app (what GitHub Pages serves)
 ```

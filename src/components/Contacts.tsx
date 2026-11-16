@@ -19,7 +19,7 @@ export function Contacts(props: {
   return (
     <>
       <div className="intro" style={{ marginBottom: 8 }}>
-        <h1 className="page-title">Contractors &amp; vendors</h1>
+        <h1 className="page-title">Contacts</h1>
         <button type="button" className="btn btn-primary" onClick={() => setEditing({ c: newContact(), isNew: true })}>
           <Plus className="icon" /> Contact
         </button>

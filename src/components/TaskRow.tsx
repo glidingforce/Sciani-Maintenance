@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CalendarClock, MoreHorizontal } from 'lucide-react';
+import { Check, CalendarClock, Mail, MoreHorizontal, Phone } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { STATUS_LABEL } from '../types';
 import { relativeDate, wallClockDate, wallClockTime, shortDate } from '../lib/dates';
-import { isOverdue, ownerLabel, type QuickAction } from '../lib/tasks';
+import { isOverdue, needsDetails, ownerLabel, waitingText, type DailyItem, type QuickAction } from '../lib/tasks';
 
 function RowMenu({ task, onQuick, onOpen }: { task: Task; onQuick: (a: QuickAction) => void; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
@@ -51,11 +51,12 @@ function RowMenu({ task, onQuick, onOpen }: { task: Task; onQuick: (a: QuickActi
       {open && (
         <div className="menu" role="menu">
           {task.status !== 'in_progress' && item('Start working on it', 'start')}
-          {task.status !== 'waiting' && item('Waiting on someone', 'waiting')}
+          {task.status !== 'waiting' && item('Waiting on someone…', 'waiting')}
           {task.status !== 'todo' && item('Back to “To do”', 'todo')}
+          {item('Mark done', 'done')}
           <hr />
-          {item('Move to tomorrow', 'tomorrow')}
-          {item('Move to next week', 'nextweek')}
+          {item('Set due date: tomorrow', 'tomorrow')}
+          {item('Set due date: next week', 'nextweek')}
           <hr />
           {task.priority !== 'High' ? item('Make it High priority', 'high') : item('Set to Normal priority', 'normal')}
           <button
@@ -132,6 +133,92 @@ export function TaskRow(props: {
         )}
       </div>
       {props.onQuick && (done ? <span /> : <RowMenu task={t} onQuick={(a) => props.onQuick!(t, a)} onOpen={() => props.onOpen(t)} />)}
+    </div>
+  );
+}
+
+/** Row for the daily list: why it is here, who/what it waits for, and the next action. */
+export function DailyRow(props: {
+  item: DailyItem;
+  contacts: Contact[];
+  today: string;
+  onToggle: (t: Task) => void;
+  onOpen: (t: Task) => void;
+  onQuick: (t: Task, a: QuickAction) => void;
+  onLog: (t: Task) => void;
+}) {
+  const { task: t, reasons } = props.item;
+  const contact = props.contacts.find((c) => c.id === t.contactId);
+  const waiting = waitingText(t);
+  const who = ownerLabel(t, props.contacts);
+  const context = [waiting ?? (t.owner === 'other' ? who : undefined), t.area].filter(Boolean).join(' · ');
+  const missing = needsDetails(t);
+  const canLog = t.owner === 'other' || !!t.contactId || t.status === 'waiting' || !!t.nextFollowUp;
+  const urgent = reasons.some((r) => r.tone === 'urgent');
+  return (
+    <div className={`task daily${urgent ? ' accent-overdue' : t.priority === 'High' ? ' accent-high' : ''}`} data-testid="task-row">
+      <button
+        type="button"
+        className="check"
+        role="checkbox"
+        aria-checked={false}
+        aria-label={`Mark “${t.title}” done`}
+        onClick={() => props.onToggle(t)}
+      >
+        <span />
+      </button>
+      <div className="task-main">
+        <button type="button" className="task-title" onClick={() => props.onOpen(t)}>
+          {t.kind === 'project' && <span className="kind-tag">Long-term</span>}
+          {t.title}
+        </button>
+        <div className="reasons">
+          {reasons.map((r) => (
+            <span key={r.label} className={`reason ${r.tone}`}>
+              {r.label}
+            </span>
+          ))}
+          {t.status === 'in_progress' && <span className="tag status-in_progress">In progress</span>}
+          {t.priority !== 'Normal' && (
+            <span className={`priority inline ${t.priority}`}>
+              <i className="dot" aria-hidden="true" />
+              {t.priority}
+            </span>
+          )}
+        </div>
+        {context && <div className="detail">{context}</div>}
+        {t.nextAction ? (
+          <div className="next">
+            <b>Next:</b> {t.nextAction}
+          </div>
+        ) : (
+          missing && (
+            <button type="button" className="linkish add-detail" onClick={() => props.onOpen(t)}>
+              + {missing}
+            </button>
+          )
+        )}
+        {(contact?.phone || contact?.email || canLog) && (
+          <div className="row-actions">
+            {contact?.phone && (
+              <a className="pill" href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`} aria-label={`Call ${contact.name}`}>
+                <Phone className="icon" width={14} height={14} /> Call
+              </a>
+            )}
+            {!contact?.phone && contact?.email && (
+              <a className="pill" href={`mailto:${contact.email}?subject=${encodeURIComponent(t.title)}`} aria-label={`Email ${contact.name}`}>
+                <Mail className="icon" width={14} height={14} /> Email
+              </a>
+            )}
+            {canLog && (
+              <button type="button" className="pill" onClick={() => props.onLog(t)}>
+                Log update
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <RowMenu task={t} onQuick={(a) => props.onQuick(t, a)} onOpen={() => props.onOpen(t)} />
     </div>
   );
 }

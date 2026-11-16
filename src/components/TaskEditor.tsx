@@ -24,7 +24,7 @@ export function TaskEditor(props: {
   const [newContactDraft, setNewContactDraft] = useState<{ name: string; company: string; type: ContactType; phone: string; email: string } | null>(null);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const opt = (v: string) => (v.trim() ? v : undefined);
-  const hasDetails = !!(t.area || t.requester || t.notes || t.nextFollowUp || (t.owner === 'me' && t.contactId));
+  const hasDetails = !!(t.area || t.requester || t.notes || t.blocker || t.managementAction || (t.owner === 'me' && (t.contactId || t.nextFollowUp)));
 
   async function commit(next: Task, close = true) {
     if (!next.title.trim()) return setError('Give the task a title.');
@@ -128,7 +128,7 @@ export function TaskEditor(props: {
       </button>
       {props.actions.logFollowUp && (
         <button type="button" className="btn" onClick={() => props.actions.logFollowUp!(t)}>
-          Log follow-up
+          Log update
         </button>
       )}
       {props.actions.schedule && t.status !== 'done' && (
@@ -173,12 +173,15 @@ export function TaskEditor(props: {
             onChange={(e) => set('title', e.target.value)}
           />
         </label>
-        {t.kind === 'project' && (
-          <label className="field">
-            <span>Next action</span>
-            <input value={t.nextAction ?? ''} maxLength={200} onChange={(e) => set('nextAction', opt(e.target.value))} />
-          </label>
-        )}
+        <label className="field">
+          <span>Next action{t.kind === 'project' ? '' : ' (optional)'}</span>
+          <input
+            value={t.nextAction ?? ''}
+            maxLength={200}
+            placeholder="e.g. Call to confirm the visit"
+            onChange={(e) => set('nextAction', opt(e.target.value))}
+          />
+        </label>
         <Segmented<Priority>
           label="Priority"
           value={t.priority}
@@ -188,7 +191,7 @@ export function TaskEditor(props: {
         <div className="grid2">
           {t.kind === 'task' ? (
             <label className="field">
-              <span>Due date</span>
+              <span>Work due date</span>
               <input type="date" value={t.dueDate ?? ''} onChange={(e) => set('dueDate', opt(e.target.value))} />
             </label>
           ) : (
@@ -209,7 +212,7 @@ export function TaskEditor(props: {
           </label>
         </div>
         <Segmented<Owner>
-          label="Who is doing it"
+          label="Responsible"
           value={t.owner}
           options={[
             { value: 'me', label: 'Me' },
@@ -220,16 +223,36 @@ export function TaskEditor(props: {
         {t.owner === 'other' && (
           <>
             <label className="field">
-              <span>Name or team (optional if a contact is linked)</span>
+              <span>Responsible person or company (optional if a contact is linked)</span>
               <input value={t.assignee ?? ''} onChange={(e) => set('assignee', opt(e.target.value))} />
             </label>
             {contactSelect}
             {newContactFields}
+            {t.status !== 'waiting' && (
+              <label className="field">
+                <span>Next follow-up date</span>
+                <input type="date" value={t.nextFollowUp ?? ''} onChange={(e) => set('nextFollowUp', opt(e.target.value))} />
+              </label>
+            )}
+          </>
+        )}
+        {t.status === 'waiting' && (
+          <div className="waiting-box" data-testid="waiting-fields">
+            <div className="grid2">
+              <label className="field">
+                <span>Waiting for (who)</span>
+                <input value={t.waitingFor ?? ''} placeholder="e.g. Cooling contractor" onChange={(e) => set('waitingFor', opt(e.target.value))} />
+              </label>
+              <label className="field">
+                <span>Waiting for (what)</span>
+                <input value={t.waitingWhat ?? ''} placeholder="e.g. Visit date" onChange={(e) => set('waitingWhat', opt(e.target.value))} />
+              </label>
+            </div>
             <label className="field">
-              <span>Next follow-up</span>
+              <span>Next follow-up date</span>
               <input type="date" value={t.nextFollowUp ?? ''} onChange={(e) => set('nextFollowUp', opt(e.target.value))} />
             </label>
-          </>
+          </div>
         )}
         <details className="more-fields" open={!props.isNew && hasDetails}>
           <summary>More details</summary>
@@ -248,12 +271,26 @@ export function TaskEditor(props: {
               <>
                 {contactSelect}
                 {newContactFields}
-                <label className="field">
-                  <span>Next follow-up</span>
-                  <input type="date" value={t.nextFollowUp ?? ''} onChange={(e) => set('nextFollowUp', opt(e.target.value))} />
-                </label>
+                {t.status !== 'waiting' && (
+                  <label className="field">
+                    <span>Next follow-up date</span>
+                    <input type="date" value={t.nextFollowUp ?? ''} onChange={(e) => set('nextFollowUp', opt(e.target.value))} />
+                  </label>
+                )}
               </>
             )}
+            <label className="field">
+              <span>Blocker (marks the task as Blocked)</span>
+              <input value={t.blocker ?? ''} placeholder="e.g. No purchase order yet" onChange={(e) => set('blocker', opt(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Management action needed (shown in reports)</span>
+              <input
+                value={t.managementAction ?? ''}
+                placeholder="e.g. Budget approval for spare compressor"
+                onChange={(e) => set('managementAction', opt(e.target.value))}
+              />
+            </label>
             <label className="field">
               <span>Notes</span>
               <textarea value={t.notes ?? ''} maxLength={4000} onChange={(e) => set('notes', opt(e.target.value))} />

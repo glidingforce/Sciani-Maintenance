@@ -12,6 +12,8 @@ export interface FollowUpEntry {
   date: DateOnly;
   note: string;
   loggedAt: string; // ISO timestamp
+  /** Original values that could not be converted from an older backup. */
+  _legacy?: Record<string, unknown>;
 }
 
 /** Link between a task and one Outlook event. Times are wall-clock in `timeZone`. */
@@ -43,15 +45,27 @@ export interface Task {
   contactId?: string;
   notes?: string;
   nextFollowUp?: DateOnly;
-  /** Long-term projects: the single next step. */
+  /** The single next step (any task; required for long-term work). */
   nextAction?: string;
   milestoneDate?: DateOnly;
+  /** Schema 2: who the task is waiting for (person or company). */
+  waitingFor?: string;
+  /** Schema 2: what it is waiting for (a quote, a visit, a part). */
+  waitingWhat?: string;
+  /** Schema 2: what is blocking the work. A recorded blocker means "Blocked"; Waiting alone does not. */
+  blocker?: string;
+  /** Schema 2: approval, budget, access or another management decision needed. */
+  managementAction?: string;
   archived: boolean;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
   followUps: FollowUpEntry[];
   outlook?: OutlookLink;
+  /** Original values that could not be converted from an older backup. */
+  _legacy?: Record<string, unknown>;
+  /** Fields from older or newer versions that this version does not use are kept as they are. */
+  [unknownField: string]: unknown;
 }
 
 export interface Contact {
@@ -63,6 +77,8 @@ export interface Contact {
   email?: string;
   createdAt: string;
   updatedAt: string;
+  _legacy?: Record<string, unknown>;
+  [unknownField: string]: unknown;
 }
 
 export interface Dataset {

@@ -1,27 +1,45 @@
 import type { Contact, Dataset, Task } from '../types';
-import { SaveError, type Repo, type StorageMode } from './repo';
+import { SAFETY_KEYS, SaveError, type Repo, type StorageMode } from './repo';
 import { demoData } from './demo';
+import { SCHEMA_VERSION, convertToCurrent } from '../lib/backup';
 
-const KEYS = { local: 'scinai-maintenance:records:v1', demo: 'scinai-maintenance:demo:v1' } as const;
+// The storage key keeps its original name so existing data is found after the upgrade.
+export const STORAGE_KEYS = { local: 'scinai-maintenance:records:v1', demo: 'scinai-maintenance:demo:v1' } as const;
 
 /** Browser-only storage. Real ("local") and sample ("demo") data use separate keys. */
 export class LocalRepo implements Repo {
   constructor(readonly mode: Exclude<StorageMode, 'cloud'>, private store: Storage = window.localStorage) {}
 
   private read(): Dataset {
-    const raw = this.store.getItem(KEYS[this.mode]);
+    const raw = this.store.getItem(STORAGE_KEYS[this.mode]);
     if (!raw) {
       const initial = this.mode === 'demo' ? demoData() : { tasks: [], contacts: [] };
       if (this.mode === 'demo') this.write(initial);
       return initial;
     }
-    const parsed = JSON.parse(raw) as Dataset;
-    return { tasks: parsed.tasks ?? [], contacts: parsed.contacts ?? [] };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      throw new SaveError('The saved data in this browser is damaged and could not be read. Nothing was changed.', e);
+    }
+    const stored = parsed as { schemaVersion?: number };
+    if (stored?.schemaVersion === SCHEMA_VERSION) {
+      return { tasks: (parsed as Dataset).tasks, contacts: (parsed as Dataset).contacts };
+    }
+    // Older data: convert, but keep an untouched copy first.
+    const res = convertToCurrent(parsed);
+    if (!res.ok) throw new SaveError(`The saved data could not be upgraded: ${res.errors.join(' ')} Nothing was changed.`);
+    if (this.mode === 'local' && this.store.getItem(SAFETY_KEYS.preUpgradeLocal) === null) {
+      this.store.setItem(SAFETY_KEYS.preUpgradeLocal, JSON.stringify({ savedAt: new Date().toISOString(), raw }));
+    }
+    this.write(res.data);
+    return res.data;
   }
 
   private write(data: Dataset) {
     try {
-      this.store.setItem(KEYS[this.mode], JSON.stringify(data));
+      this.store.setItem(STORAGE_KEYS[this.mode], JSON.stringify({ schemaVersion: SCHEMA_VERSION, tasks: data.tasks, contacts: data.contacts }));
     } catch (e) {
       throw new SaveError('This browser refused to save (storage full or blocked).', e);
     }
@@ -53,15 +71,8 @@ export class LocalRepo implements Repo {
     this.write(d);
   }
 
-  async replaceAll(data: Dataset) {
-    // Same rule as cloud restore: backup records overwrite by id, newer records stay.
-    const d = this.read();
-    const merge = <T extends { id: string }>(cur: T[], inc: T[]) => {
-      const m = new Map(cur.map((x) => [x.id, x]));
-      for (const x of inc) m.set(x.id, x);
-      return [...m.values()];
-    };
-    this.write({ tasks: merge(d.tasks, data.tasks), contacts: merge(d.contacts, data.contacts) });
+  async apply(fn: (current: Dataset) => Dataset) {
+    this.write(fn(this.read()));
   }
 
   /** Resets the demo records to the original sample set. */

@@ -1,5 +1,6 @@
 import type { Contact, Dataset, Task } from '../types';
-import { SaveError, type Repo } from './repo';
+import { SAFETY_KEYS, SaveError, type Repo } from './repo';
+import { SCHEMA_VERSION, convertToCurrent } from '../lib/backup';
 
 export const DATA_FILE = 'maintenance-data.json';
 const ITEM = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${DATA_FILE}`;
@@ -76,9 +77,28 @@ export class OneDriveRepo implements Repo {
     const dl: string | undefined = item['@microsoft.graph.downloadUrl'];
     const content = dl ? await this.request(dl, {}, false) : await this.request(`${ITEM}:/content`);
     if (!content.ok) return this.fail(content);
-    const parsed = (await content.json()) as Partial<Dataset>;
+    const text = await content.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      throw new SaveError('The OneDrive data file is damaged and could not be read. Nothing was changed; OneDrive version history has earlier copies.', e);
+    }
+    const res = convertToCurrent(parsed);
+    if (!res.ok) throw new SaveError(`The OneDrive data could not be read: ${res.errors.join(' ')} Nothing was changed.`);
+    const version = (parsed as { version?: number }).version;
+    if (version !== SCHEMA_VERSION) {
+      // Older file: keep an untouched copy on this device. The file itself is only
+      // rewritten (in the new format) on the next save, and OneDrive keeps its history.
+      try {
+        if (localStorage.getItem(SAFETY_KEYS.preUpgradeCloud) === null)
+          localStorage.setItem(SAFETY_KEYS.preUpgradeCloud, JSON.stringify({ savedAt: new Date().toISOString(), raw: text }));
+      } catch {
+        /* storage unavailable: OneDrive version history still has the old file */
+      }
+    }
     this.etag = item.eTag ?? null;
-    this.data = { tasks: parsed.tasks ?? [], contacts: parsed.contacts ?? [] };
+    this.data = res.data;
     return this.data;
   }
 
@@ -93,7 +113,7 @@ export class OneDriveRepo implements Repo {
         const res = await this.request(`${ITEM}:/content`, {
           method: 'PUT',
           headers,
-          body: JSON.stringify({ app: 'scinai-maintenance', version: 1, savedAt: new Date().toISOString(), ...next }),
+          body: JSON.stringify({ app: 'scinai-maintenance', version: SCHEMA_VERSION, savedAt: new Date().toISOString(), ...next }),
         });
         if (res.status === 412 || res.status === 409) {
           await this.load(); // someone else saved: refresh and re-apply this change
@@ -124,11 +144,7 @@ export class OneDriveRepo implements Repo {
     return this.mutate((d) => ({ ...d, contacts: d.contacts.filter((c) => c.id !== id) }));
   }
 
-  replaceAll(backup: Dataset) {
-    // Restore adds or overwrites by id; it never deletes newer records.
-    return this.mutate((d) => ({
-      tasks: backup.tasks.reduce(upsert, d.tasks),
-      contacts: backup.contacts.reduce(upsert, d.contacts),
-    }));
+  apply(fn: (current: Dataset) => Dataset) {
+    return this.mutate(fn);
   }
 }

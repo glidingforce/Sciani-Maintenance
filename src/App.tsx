@@ -15,12 +15,13 @@ import { OutlookPanel } from './components/OutlookPanel';
 import { DataPanel } from './components/DataPanel';
 import { SignIn } from './components/SignIn';
 import { Sheet } from './components/Sheet';
+import { ReportDialog } from './components/ReportDialog';
 
 type Page = 'today' | 'tasks' | 'contacts';
 const PAGES: { id: Page; label: string; short: string; Icon: typeof Sun }[] = [
   { id: 'today', label: 'Today', short: 'Today', Icon: Sun },
-  { id: 'tasks', label: 'All tasks', short: 'Tasks', Icon: ListTodo },
-  { id: 'contacts', label: 'Contractors', short: 'Contractors', Icon: Handshake },
+  { id: 'tasks', label: 'All Tasks', short: 'All Tasks', Icon: ListTodo },
+  { id: 'contacts', label: 'Contacts', short: 'Contacts', Icon: Handshake },
 ];
 
 const pageFromHash = (): Page => {
@@ -45,6 +46,7 @@ export default function App() {
   const [followUpFor, setFollowUpFor] = useState<Task | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Task | null>(null);
   const [showData, setShowData] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [showOutlookSetup, setShowOutlookSetup] = useState(false);
 
   const outlook = useOutlook(ws.data.tasks, ws.saveTask, ws.load === 'ready' && ws.mode !== 'demo');
@@ -76,7 +78,14 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [ws.save]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const quick = useCallback((t: Task, a: QuickAction) => void ws.saveTask(applyQuick(t, a, today)), [ws.saveTask, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const quick = useCallback(
+    async (t: Task, a: QuickAction) => {
+      const next = applyQuick(t, a, today);
+      // "Waiting on someone…" opens the task so you can say for whom and for what.
+      if ((await ws.saveTask(next)) && a === 'waiting') setEditing({ task: next, isNew: false });
+    },
+    [ws.saveTask, today], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const toggle = useCallback((t: Task) => void ws.saveTask(t.status === 'done' ? reopen(t) : complete(t)), [ws.saveTask]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,8 +125,8 @@ export default function App() {
           ))}
         </nav>
         <div className="top-right">
-          <span className={`mode-badge${ws.mode === 'demo' ? ' demo' : ''}`}>
-            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : ''}
+          <span className={`mode-badge${ws.mode === 'demo' ? ' demo' : ''}`} data-testid="sync-status">
+            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : ws.save.kind === 'saving' ? 'Saving…' : 'OneDrive · saved'}
           </span>
           <button type="button" className="person" aria-label="Data and accounts" onClick={() => setShowData(true)}>
             <span>{who.initials || <User className="icon" />}</span>
@@ -127,6 +136,8 @@ export default function App() {
     </header>
   );
 
+  // Only demo mode gets a banner. Normal storage status stays compact (header and day summary);
+  // real problems (failed saves, failed loads) use the error toast or the error screen.
   const notice =
     ws.mode === 'demo' ? (
       <div className="notice-wrap">
@@ -137,23 +148,16 @@ export default function App() {
           </button>
         </div>
       </div>
-    ) : ws.mode === 'local' ? (
-      <div className="notice-wrap">
-        <div className="notice" role="note">
-          <b>This device only.</b>{' '}
-          {window.location.protocol === 'file:'
-            ? 'Opened from a file: tasks are saved in this browser only. Microsoft sign-in works from the web address.'
-            : 'Saved in this browser; not synced to your other devices.'}
-          {ws.cloudAvailable && (
-            <button type="button" className="linkish" onClick={() => ws.setLocalOnly(false)}>
-              Sign in to OneDrive
-            </button>
-          )}
-          <button type="button" className="linkish" onClick={() => setShowData(true)}>
-            Details &amp; backup
-          </button>
-        </div>
-      </div>
+    ) : null;
+
+  const storageNote =
+    ws.mode === 'local' ? (
+      <span className="storage-note">
+        {' · '}Saved on this device only{' '}
+        <button type="button" className="linkish" onClick={() => (ws.cloudAvailable ? ws.setLocalOnly(false) : setShowData(true))}>
+          {ws.cloudAvailable ? 'Sign in to sync' : 'Details'}
+        </button>
+      </span>
     ) : null;
 
   let body: React.ReactNode;
@@ -179,15 +183,15 @@ export default function App() {
         <Today
           {...common}
           tasks={ws.data.tasks}
-          firstName={who.first}
+          storageNote={storageNote}
           onAdd={addTask}
+          onReport={() => setShowReport(true)}
           onQuickAdd={ws.saveTask}
-          onFollowUp={setFollowUpFor}
-          onShowAll={() => go('tasks')}
+          onLog={setFollowUpFor}
           outlookSlot={ws.mode === 'demo' ? null : <OutlookPanel outlook={outlook} onSetupInfo={() => setShowOutlookSetup(true)} />}
         />
       ) : page === 'tasks' ? (
-        <AllTasks {...common} tasks={ws.data.tasks} onAdd={addTask} />
+        <AllTasks {...common} tasks={ws.data.tasks} onAdd={addTask} onReport={() => setShowReport(true)} />
       ) : (
         <Contacts contacts={ws.data.contacts} tasks={ws.data.tasks} onSave={ws.saveContact} onDelete={ws.deleteContact} onOpenTask={openTask} />
       );
@@ -255,6 +259,7 @@ export default function App() {
         />
       )}
       {showData && <DataPanel ws={ws} onClose={() => setShowData(false)} />}
+      {showReport && <ReportDialog tasks={ws.data.tasks} contacts={ws.data.contacts} today={today} onClose={() => setShowReport(false)} />}
       {showOutlookSetup && (
         <Sheet title="Outlook needs the web address" onClose={() => setShowOutlookSetup(false)}>
           <div className="form">

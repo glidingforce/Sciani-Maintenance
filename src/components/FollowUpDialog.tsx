@@ -38,13 +38,15 @@ export function FollowUpDialog(props: {
   const [date, setDate] = useState(props.today);
   const [note, setNote] = useState('');
   const [next, setNext] = useState(addDays(props.today, 3));
+  const [nextAction, setNextAction] = useState(props.task.nextAction ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const c = props.contact;
 
   async function submit() {
     setBusy(true);
-    const ok = await props.onSave(logFollowUp(props.task, { date, note, next: next || undefined }));
+    const logged = logFollowUp(props.task, { date, note, next: next || undefined });
+    const ok = await props.onSave({ ...logged, nextAction: nextAction.trim() || undefined });
     setBusy(false);
     if (ok) props.onClose();
     else setError('Not saved. Try again.');
@@ -52,7 +54,7 @@ export function FollowUpDialog(props: {
 
   return (
     <Sheet
-      title="Log follow-up"
+      title="Log update"
       onClose={props.onClose}
       footer={
         <>
@@ -60,7 +62,7 @@ export function FollowUpDialog(props: {
             Cancel
           </button>
           <button type="submit" form="fu-form" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Log follow-up'}
+            {busy ? 'Saving…' : 'Save update'}
           </button>
         </>
       }
@@ -91,7 +93,7 @@ export function FollowUpDialog(props: {
         </div>
         <div className="grid2">
           <label className="field">
-            <span>Followed up on</span>
+            <span>Date of update</span>
             <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label className="field">
@@ -100,10 +102,14 @@ export function FollowUpDialog(props: {
           </label>
         </div>
         <label className="field">
-          <span>Note</span>
+          <span>Outcome</span>
           <input value={note} maxLength={300} placeholder="e.g. Visit confirmed for Thursday" onChange={(e) => setNote(e.target.value)} />
         </label>
-        <p className="subtle">Logging a follow-up does not complete the task. Clear “Next follow-up” if none is needed.</p>
+        <label className="field">
+          <span>Next action</span>
+          <input value={nextAction} maxLength={200} placeholder="e.g. Meet technician at the chiller" onChange={(e) => setNextAction(e.target.value)} />
+        </label>
+        <p className="subtle">This does not complete the task. Clear “Next follow-up” if none is needed.</p>
         {error && <p className="error-text">{error}</p>}
       </form>
     </Sheet>

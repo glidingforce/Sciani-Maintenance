@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { FileText, Plus, Search } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { compareDaily, isOpen, matchesOwner, searchTasks, type OwnerFilter, type QuickAction } from '../lib/tasks';
 import { TaskRow } from './TaskRow';
@@ -19,6 +19,7 @@ export function AllTasks(props: {
   contacts: Contact[];
   today: string;
   onAdd: () => void;
+  onReport: () => void;
   onOpen: (t: Task) => void;
   onToggle: (t: Task) => void;
   onQuick: (t: Task, a: QuickAction) => void;
@@ -44,10 +45,15 @@ export function AllTasks(props: {
   return (
     <>
       <div className="intro" style={{ marginBottom: 8 }}>
-        <h1 className="page-title">All tasks</h1>
-        <button type="button" className="btn btn-primary" onClick={props.onAdd}>
-          <Plus className="icon" /> Task
-        </button>
+        <h1 className="page-title">All Tasks</h1>
+        <div className="day-actions">
+          <button type="button" className="btn" onClick={props.onReport}>
+            <FileText className="icon" /> <span className="hide-sm">Export </span>report
+          </button>
+          <button type="button" className="btn btn-primary" onClick={props.onAdd}>
+            <Plus className="icon" /> Task
+          </button>
+        </div>
       </div>
       <div className="toolbar">
         <label className="search">
