@@ -1426,3 +1426,279 @@ textarea {
     flex: 1;
   }
 }
+
+/* ---------- Update 3: wide desktop layout ---------- */
+.main {
+  max-width: 1280px;
+}
+.today-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 32px;
+  align-items: start;
+}
+.today-main {
+  min-width: 0;
+}
+.today-side {
+  position: sticky;
+  top: 92px;
+  display: grid;
+  gap: 14px;
+}
+.side-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--white);
+  margin: 0;
+}
+.side-card .group-head {
+  margin: 0;
+  border-top: 0 !important;
+  padding-top: 0 !important;
+}
+.side-title {
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--plum);
+  margin-bottom: 6px;
+}
+.overview dl {
+  margin: 0;
+}
+.ov-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.ov-row:first-child {
+  border-top: 0;
+}
+.ov-row dt .linkish {
+  min-height: 0;
+  font-size: 14px;
+}
+.ov-row dd {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--plum);
+}
+.ov-row.strong dt {
+  font-weight: 700;
+}
+.ov-row.warn:not(.zero) dd,
+.ov-row.warn:not(.zero) dt {
+  color: var(--overdue);
+}
+.ov-row.ok dd {
+  color: var(--ok);
+}
+.ov-row.zero dd {
+  color: var(--muted);
+  font-weight: 400;
+}
+.lt-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.lt-item .project-title {
+  font-size: 14.5px;
+}
+.lt-next {
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+.today-side .done-group .task {
+  padding-left: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+.today-side .done-group .task-side {
+  display: none;
+}
+.today-side .outlook {
+  margin-top: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+/* Filter bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.filter-bar select {
+  width: auto;
+  flex: 0 1 auto;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 6px 8px;
+}
+.filter-search {
+  position: relative;
+  flex: 1 1 220px;
+}
+.filter-search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+.filter-search input {
+  padding-left: 34px;
+  min-height: 40px;
+  font-size: 15px;
+}
+.clear-filters {
+  min-height: 40px;
+}
+.filtered-note {
+  color: var(--rose-text);
+  font-weight: 700;
+}
+
+/* Daily row: details column on the right */
+.task.daily {
+  grid-template-columns: 30px minmax(0, 1fr) 240px 44px;
+}
+.meta {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  font-size: 13.5px;
+  color: var(--ink);
+  padding-top: 3px;
+  min-width: 0;
+}
+.meta-line {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.meta-line svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  color: var(--rose);
+  flex: none;
+}
+.meta-line.age {
+  color: var(--muted);
+}
+.meta-line.age.old {
+  color: var(--high);
+  font-weight: 700;
+}
+.age {
+  color: var(--muted);
+}
+.waiting-line {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .today-grid {
+    grid-template-columns: 1fr;
+  }
+  .today-side {
+    position: static;
+  }
+  .today-side .overview {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  .task.daily {
+    grid-template-columns: 30px minmax(0, 1fr) 44px;
+  }
+  .task.daily .meta {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    padding-top: 0;
+  }
+  .task.daily .row-menu {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+@media (max-width: 720px) {
+  .filter-bar select {
+    flex: 1 1 calc(50% - 4px);
+  }
+  .filter-search {
+    flex: 1 1 100%;
+  }
+}
+@media (pointer: coarse) {
+  .filter-bar select,
+  .filter-search input,
+  .clear-filters,
+  .ov-row dt .linkish {
+    min-height: var(--touch);
+  }
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .grid3 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .grid3 > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+/* Keep every row anchored at the checkbox: Hebrew still reads right-to-left, but lines start on the left in this English layout. */
+.task-title,
+.meta-line,
+.detail,
+.next,
+.project-title {
+  text-align: left;
+}
+.filter-selects {
+  display: contents;
+}
+.filter-toggle {
+  display: none;
+}
+@media (max-width: 720px) {
+  .filter-search {
+    flex: 1 1 0;
+  }
+  .filter-toggle {
+    display: inline-flex;
+  }
+  .filter-selects {
+    display: none;
+  }
+  .filter-selects.open {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .day-head {
+    margin-bottom: 10px;
+  }
+}

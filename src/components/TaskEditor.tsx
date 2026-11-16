@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { Contact, ContactType, Kind, Owner, Priority, Status, Task } from '../types';
 import { CONTACT_TYPES, PRIORITIES, STATUSES, STATUS_LABEL } from '../types';
-import { complete, newContact, reopen, setArchived } from '../lib/tasks';
+import { complete, createdDate, daysLabel, daysOpen, newContact, reopen, setArchived } from '../lib/tasks';
+import { getMyName } from '../lib/settings';
+import { shortDate, todayISO } from '../lib/dates';
 import { Segmented, Sheet } from './Sheet';
 
 export interface EditorActions {
@@ -182,6 +184,20 @@ export function TaskEditor(props: {
             onChange={(e) => set('nextAction', opt(e.target.value))}
           />
         </label>
+        <div className="grid3">
+          <label className="field">
+            <span>Equipment name</span>
+            <input value={t.equipmentName ?? ''} placeholder="e.g. Huber chiller" maxLength={120} onChange={(e) => set('equipmentName', opt(e.target.value))} />
+          </label>
+          <label className="field">
+            <span>Equipment no.</span>
+            <input value={t.equipmentNumber ?? ''} placeholder="e.g. CH-02" maxLength={60} onChange={(e) => set('equipmentNumber', opt(e.target.value))} />
+          </label>
+          <label className="field">
+            <span>Room</span>
+            <input value={t.room ?? ''} placeholder="e.g. 104" maxLength={60} onChange={(e) => set('room', opt(e.target.value))} />
+          </label>
+        </div>
         <Segmented<Priority>
           label="Priority"
           value={t.priority}
@@ -215,7 +231,7 @@ export function TaskEditor(props: {
           label="Responsible"
           value={t.owner}
           options={[
-            { value: 'me', label: 'Me' },
+            { value: 'me', label: getMyName() },
             { value: 'other', label: 'Someone else' },
           ]}
           onChange={(v) => set('owner', v)}
@@ -259,8 +275,8 @@ export function TaskEditor(props: {
           <div className="more-grid">
             <div className="grid2">
               <label className="field">
-                <span>Area / equipment</span>
-                <input value={t.area ?? ''} placeholder="e.g. Production · AHU-02" onChange={(e) => set('area', opt(e.target.value))} />
+                <span>Area</span>
+                <input value={t.area ?? ''} placeholder="e.g. Production · HVAC" onChange={(e) => set('area', opt(e.target.value))} />
               </label>
               <label className="field">
                 <span>Requested by</span>
@@ -297,6 +313,12 @@ export function TaskEditor(props: {
             </label>
           </div>
         </details>
+        {!props.isNew && (
+          <p className="subtle" data-testid="task-age">
+            Created {shortDate(createdDate(t), '')} · {daysLabel(daysOpen(t, todayISO()))}
+            {t.status === 'done' && t.completedAt ? ` · closed ${shortDate(todayISO(new Date(t.completedAt)), '')}` : ''}
+          </p>
+        )}
         {t.outlook && (
           <div className={`linked${t.outlook.state === 'removed' ? ' removed' : ''}`}>
             {t.outlook.state === 'scheduled' && t.outlook.start

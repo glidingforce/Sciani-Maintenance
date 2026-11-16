@@ -41,3 +41,30 @@ describe('management report selection', () => {
     expect(toRow(waiting[0], data.contacts, today).responsible).toBe('Cooling Co קירור');
   });
 });
+
+import { closedRow, selectClosedTasks } from '../src/lib/report';
+import { daysOpen } from '../src/lib/tasks';
+
+describe('closed in the last 7 days', () => {
+  const mk = (title: string, created: string, completed?: string, extra = {}) =>
+    ({ ...data.tasks[0], id: title, title, createdAt: created, updatedAt: created, status: completed ? 'done' : 'todo', completedAt: completed, archived: false, ...extra }) as typeof data.tasks[0];
+  const tasks = [
+    mk('closed today', '2026-11-10T08:00:00Z', '2026-11-16T07:00:00Z'),
+    mk('closed 6 days ago', '2026-11-01T08:00:00Z', '2026-11-10T09:00:00Z'),
+    mk('closed 7 days ago', '2026-11-01T08:00:00Z', '2026-11-09T09:00:00Z'),
+    mk('closed and archived', '2026-11-12T08:00:00Z', '2026-11-13T09:00:00Z', { archived: true }),
+    mk('still open', '2026-11-02T08:00:00Z'),
+  ];
+  it('covers today and the 6 days before (10 to 16 Nov), archived ones too, newest first', () => {
+    expect(selectClosedTasks(tasks, [], DEFAULT_FILTERS, today).map((t) => t.title)).toEqual(['closed today', 'closed and archived', 'closed 6 days ago']);
+  });
+  it('days open run from creation to completion; open tasks count to today', () => {
+    expect(closedRow(tasks[0], [], today)).toMatchObject({ opened: '2026-11-10', closed: '2026-11-16', daysOpen: 6 });
+    expect(daysOpen(tasks[4], today)).toBe(14);
+  });
+  it('a completion just after midnight Israel time counts on the Israel date', () => {
+    const inside = mk('late', '2026-11-01T08:00:00Z', '2026-11-09T22:30:00Z'); // 00:30 on 10 Nov in Israel
+    const outside = mk('earlier', '2026-11-01T08:00:00Z', '2026-11-09T21:30:00Z'); // 23:30 on 9 Nov in Israel
+    expect(selectClosedTasks([inside, outside], [], DEFAULT_FILTERS, today).map((t) => t.title)).toEqual(['late']);
+  });
+});

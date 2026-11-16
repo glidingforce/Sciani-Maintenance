@@ -1,0 +1,147 @@
+{
+  "app": "scinai-maintenance",
+  "version": 2,
+  "exportedAt": "2026-11-16T07:00:00.000Z",
+  "mode": "local",
+  "tasks": [
+    {
+      "id": "3d50d1fd-4c4f-4136-8c17-f430d84c316b",
+      "kind": "task",
+      "title": "Investigate AHU-02 pressure alarm",
+      "priority": "High",
+      "status": "done",
+      "owner": "me",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:08.577Z",
+      "updatedAt": "2026-11-16T07:00:00.000Z",
+      "followUps": [],
+      "dueDate": "2026-11-16",
+      "area": "Production · HVAC",
+      "notes": "Check DP sensor first",
+      "completedAt": "2026-11-16T07:00:00.000Z"
+    },
+    {
+      "id": "59153724-c84f-4005-b382-4a58636f1633",
+      "kind": "task",
+      "title": "החלפת מסנן HEPA בחדר נקי 3",
+      "priority": "High",
+      "status": "todo",
+      "owner": "me",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:08.835Z",
+      "updatedAt": "2026-11-16T13:56:09.038Z",
+      "followUps": [],
+      "dueDate": "2026-11-12",
+      "area": "חדר נקי 3",
+      "requester": "QA",
+      "notes": "לתאם עם הייצור · coordinate with production"
+    },
+    {
+      "id": "72f685fc-bb5f-4081-b018-86fc4d0ca4c8",
+      "kind": "task",
+      "title": "Huber chiller — coolant refill",
+      "priority": "Normal",
+      "status": "waiting",
+      "owner": "other",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:09.105Z",
+      "updatedAt": "2026-11-16T07:00:00.000Z",
+      "followUps": [
+        {
+          "id": "c042444f-4a61-49d8-af9c-1ce413095be9",
+          "date": "2026-11-16",
+          "note": "דיברתי עם יוסי – visit Thursday",
+          "loggedAt": "2026-11-16T13:56:10.470Z"
+        }
+      ],
+      "dueDate": "2026-11-17",
+      "nextFollowUp": "2026-11-18",
+      "contactId": "d1720bd6-1df0-4d0e-990c-e8e206f6745c",
+      "waitingFor": "קבלן קירור",
+      "waitingWhat": "visit date",
+      "nextAction": "Call to confirm the visit today"
+    },
+    {
+      "id": "eb16c4ac-3767-4db8-8768-e5851f723419",
+      "kind": "task",
+      "title": "Review compressor quotation",
+      "priority": "Normal",
+      "status": "todo",
+      "owner": "other",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:09.389Z",
+      "updatedAt": "2026-11-16T13:56:09.573Z",
+      "followUps": [],
+      "dueDate": "2026-11-20",
+      "contactId": "d1720bd6-1df0-4d0e-990c-e8e206f6745c",
+      "nextFollowUp": "2026-11-19"
+    },
+    {
+      "id": "c733de45-9944-4d5f-8b6b-b4dfe12804a7",
+      "kind": "task",
+      "title": "Order spare belts for AHU-05",
+      "priority": "Low",
+      "status": "todo",
+      "owner": "me",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:09.655Z",
+      "updatedAt": "2026-11-16T13:56:09.790Z",
+      "followUps": []
+    },
+    {
+      "id": "d270cbf0-a6d1-44c4-adac-ec7ee72569ba",
+      "kind": "project",
+      "title": "Annual shutdown planning",
+      "priority": "High",
+      "status": "todo",
+      "owner": "me",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:09.838Z",
+      "updatedAt": "2026-11-16T07:00:00.000Z",
+      "followUps": [],
+      "nextAction": "Collect contractor availability",
+      "milestoneDate": "2026-12-01",
+      "blocker": "No PO yet",
+      "managementAction": "אישור תקציב להשבתה"
+    },
+    {
+      "id": "f9220969-e404-40f1-836e-deefe7b9cbc3",
+      "kind": "task",
+      "title": "Replace warehouse door closer",
+      "priority": "Normal",
+      "status": "done",
+      "owner": "me",
+      "archived": false,
+      "createdAt": "2026-11-16T13:56:10.086Z",
+      "updatedAt": "2026-11-16T13:56:10.520Z",
+      "followUps": [],
+      "dueDate": "2026-11-14",
+      "requester": "QA",
+      "completedAt": "2026-11-16T13:56:10.520Z"
+    },
+    {
+      "id": "d2cb9756-1e46-4cb3-927d-340268c57721",
+      "kind": "task",
+      "title": "Old archived item",
+      "priority": "Normal",
+      "status": "todo",
+      "owner": "me",
+      "archived": true,
+      "createdAt": "2026-11-16T13:56:10.270Z",
+      "updatedAt": "2026-11-16T13:56:10.673Z",
+      "followUps": [],
+      "dueDate": "2026-10-01"
+    }
+  ],
+  "contacts": [
+    {
+      "id": "d1720bd6-1df0-4d0e-990c-e8e206f6745c",
+      "name": "יוסי לוי",
+      "type": "Contractor",
+      "createdAt": "2026-11-16T13:56:09.322Z",
+      "updatedAt": "2026-11-16T13:56:09.322Z",
+      "company": "Cooling Co קירור",
+      "phone": "050-1234567"
+    }
+  ]
+}

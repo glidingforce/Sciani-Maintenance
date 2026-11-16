@@ -56,6 +56,12 @@ export interface Task {
   blocker?: string;
   /** Schema 2: approval, budget, access or another management decision needed. */
   managementAction?: string;
+  /** Schema 3: equipment name, e.g. "Huber chiller". */
+  equipmentName?: string;
+  /** Schema 3: equipment / asset number, e.g. "CH-02". */
+  equipmentNumber?: string;
+  /** Schema 3: room, e.g. "104" or "חדר נקי 3". */
+  room?: string;
   archived: boolean;
   completedAt?: string;
   createdAt: string;

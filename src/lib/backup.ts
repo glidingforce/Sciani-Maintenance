@@ -10,8 +10,10 @@ import { uid } from './tasks';
  *  2: adds optional task fields waitingFor, waitingWhat, blocker,
  *    managementAction, and allows nextAction on every task. Nothing was
  *    renamed or removed, so v1 records are valid v2 records.
+ *  3: adds optional task fields equipmentName, equipmentNumber, room.
+ *    Again nothing renamed or removed: v1 and v2 records are valid v3 records.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const APP_ID = 'scinai-maintenance';
 
 export interface BackupFile extends Dataset {

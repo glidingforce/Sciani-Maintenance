@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { CheckCircle2, FileText, Plus } from 'lucide-react';
+import { CheckCircle2, FileText, Plus, Search, X } from 'lucide-react';
 import type { Contact, Priority, Task } from '../types';
-import { addDays, longDate } from '../lib/dates';
-import { dailyList, doneToday, newTask, type DailyGroup, type DailyItem, type OwnerFilter, type QuickAction } from '../lib/tasks';
+import { STATUS_LABEL } from '../types';
+import { addDays, longDate, shortDate } from '../lib/dates';
+import { closedWithin, dailyList, doneToday, isOverdue, newTask, type DailyGroup, type DailyItem, type QuickAction } from '../lib/tasks';
+import { NO_FILTER, applyView, describeView, filterOptions, isFiltered, type ViewFilter } from '../lib/filters';
+import { getMyName } from '../lib/settings';
 import { DailyRow, TaskRow } from './TaskRow';
 
 function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise<boolean> }) {
@@ -13,6 +16,7 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
   const [priority, setPriority] = useState<Priority>('Normal');
   const [busy, setBusy] = useState(false);
   const due = when === 'pick' ? date || undefined : { today, tomorrow: addDays(today, 1), week: addDays(today, 7), none: undefined }[when];
+  const me = getMyName();
 
   return (
     <form
@@ -21,14 +25,8 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
         e.preventDefault();
         if (!title.trim()) return;
         setBusy(true);
-        const ok = await onAdd(
-          newTask({
-            title: title.trim(),
-            dueDate: due,
-            priority,
-            ...(who.trim() ? { owner: 'other' as const, assignee: who.trim() } : {}),
-          }),
-        );
+        const other = who.trim() && who.trim().toLowerCase() !== me.toLowerCase();
+        const ok = await onAdd(newTask({ title: title.trim(), dueDate: due, priority, ...(other ? { owner: 'other' as const, assignee: who.trim() } : {}) }));
         setBusy(false);
         if (ok) {
           setTitle('');
@@ -50,7 +48,7 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
           <option value="pick">Pick a date…</option>
         </select>
         {when === 'pick' && <input className="input" type="date" aria-label="Due date" value={date} onChange={(e) => setDate(e.target.value)} />}
-        <input className="input who" aria-label="Responsible (leave empty for me)" placeholder="Who? (me)" value={who} onChange={(e) => setWho(e.target.value)} />
+        <input className="input who" aria-label={`Responsible (leave empty for ${me})`} placeholder={`Who? (${me})`} value={who} onChange={(e) => setWho(e.target.value)} />
         <button type="button" className={`chip-toggle${priority === 'High' ? ' on' : ''}`} aria-pressed={priority === 'High'} onClick={() => setPriority((p) => (p === 'High' ? 'Normal' : 'High'))}>
           High
         </button>
@@ -62,12 +60,67 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
   );
 }
 
-const GROUPS: { key: DailyGroup; title: string; tone?: string; hint?: string; collapsed?: boolean }[] = [
+function FilterBar(props: { f: ViewFilter; set: (f: ViewFilter) => void; tasks: Task[]; contacts: Contact[] }) {
+  const { f, set } = props;
+  const opts = filterOptions(props.tasks, props.contacts);
+  const me = getMyName();
+  const [more, setMore] = useState(false);
+  const active = [f.who, f.place, f.priority, f.status].filter(Boolean).length;
+  return (
+    <div className="filter-bar" role="search" aria-label="Filter tasks">
+      <label className="filter-search">
+        <Search className="icon" aria-hidden="true" />
+        <span className="sr-only">Search</span>
+        <input className="input" type="search" placeholder="Search task, equipment, room…" value={f.q} onChange={(e) => set({ ...f, q: e.target.value })} />
+      </label>
+      <button type="button" className="btn filter-toggle" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+        Filters{active ? ` (${active})` : ''}
+      </button>
+      <div className={`filter-selects${more ? ' open' : ''}`}>
+      <select className="input" aria-label="Responsible" value={f.who} onChange={(e) => set({ ...f, who: e.target.value as ViewFilter['who'] })}>
+        <option value="">Everyone</option>
+        <option value="me">{me}</option>
+        <option value="others">Others (all)</option>
+        {opts.people.map((p) => (
+          <option key={p} value={`person:${p}`}>
+            {p}
+          </option>
+        ))}
+      </select>
+      <select className="input" aria-label="Area or room" value={f.place} onChange={(e) => set({ ...f, place: e.target.value })}>
+        <option value="">All areas / rooms</option>
+        {opts.places.map((p) => (
+          <option key={p}>{p}</option>
+        ))}
+      </select>
+      <select className="input" aria-label="Priority" value={f.priority} onChange={(e) => set({ ...f, priority: e.target.value as ViewFilter['priority'] })}>
+        <option value="">Any priority</option>
+        <option>High</option>
+        <option>Normal</option>
+        <option>Low</option>
+      </select>
+      <select className="input" aria-label="Status" value={f.status} onChange={(e) => set({ ...f, status: e.target.value as ViewFilter['status'] })}>
+        <option value="">Any status</option>
+        <option value="todo">{STATUS_LABEL.todo}</option>
+        <option value="in_progress">{STATUS_LABEL.in_progress}</option>
+        <option value="waiting">{STATUS_LABEL.waiting}</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      </div>
+      {isFiltered(f) && (
+        <button type="button" className="btn clear-filters" onClick={() => set(NO_FILTER)}>
+          <X className="icon" /> Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+const MAIN_GROUPS: { key: DailyGroup; title: string; tone?: string; hint?: string; collapsed?: boolean }[] = [
   { key: 'attention', title: 'Needs attention', tone: 'attention' },
   { key: 'coming', title: 'Coming up · next 7 days' },
   { key: 'unscheduled', title: 'Not scheduled', hint: 'No due date and no follow-up date. Open one to schedule it.' },
   { key: 'later', title: 'Later', collapsed: true },
-  { key: 'longterm', title: 'Long-term work', collapsed: true },
 ];
 
 export function Today(props: {
@@ -84,13 +137,17 @@ export function Today(props: {
   onLog: (t: Task) => void;
   outlookSlot: React.ReactNode;
 }) {
-  const { tasks, contacts, today } = props;
-  const [filter, setFilter] = useState<OwnerFilter>('all');
-  const list = dailyList(tasks, today, filter);
+  const { contacts, today } = props;
+  const [f, setF] = useState<ViewFilter>(NO_FILTER);
+  const filtered = isFiltered(f);
+  const tasks = applyView(props.tasks, contacts, f);
+  const list = dailyList(tasks, today);
   const done = doneToday(tasks, today);
+  const closedWeek = closedWithin(tasks, today, 7);
   const rowProps = { contacts, today, onOpen: props.onOpen, onToggle: props.onToggle, onQuick: props.onQuick, onLog: props.onLog };
   const n = (g: DailyGroup) => list[g].length;
-  const openTotal = GROUPS.reduce((s, g) => s + n(g.key), 0);
+  const open = Object.values(list).flat().map((i) => i.task);
+  const openTotal = open.length;
 
   const summary = [
     `${n('attention')} need${n('attention') === 1 ? 's' : ''} attention`,
@@ -102,14 +159,27 @@ export function Today(props: {
 
   const attentionEmpty =
     openTotal === 0
-      ? tasks.length === 0
+      ? props.tasks.length === 0
         ? 'No tasks yet. Type the first one above.'
-        : 'No open work. Everything is done.'
+        : filtered
+          ? 'No open tasks match these filters.'
+          : 'No open work. Everything is done.'
       : `Nothing overdue, due today or waiting on a follow-up today.${n('coming') ? ` ${n('coming')} coming up this week.` : ''}${
           n('unscheduled') ? ` ${n('unscheduled')} task${n('unscheduled') > 1 ? 's have' : ' has'} no date yet.` : ''
         }`;
 
   const renderItems = (items: DailyItem[]) => items.map((i) => <DailyRow key={i.task.id} item={i} {...rowProps} />);
+
+  const overview: [string, number, (() => void) | undefined, string?][] = [
+    ['Needs attention', n('attention'), undefined, 'strong'],
+    ['Overdue', open.filter((t) => isOverdue(t, today) || (t.kind === 'project' && !!t.milestoneDate && t.milestoneDate < today)).length, undefined, 'warn'],
+    ['Follow-ups due', open.filter((t) => t.nextFollowUp && t.nextFollowUp <= today).length, undefined],
+    ['Coming up (7 days)', n('coming'), undefined],
+    ['Not scheduled', n('unscheduled'), undefined],
+    ['Waiting', open.filter((t) => t.status === 'waiting').length, () => setF({ ...f, status: f.status === 'waiting' ? '' : 'waiting' })],
+    ['Blocked', open.filter((t) => !!t.blocker).length, () => setF({ ...f, status: f.status === 'blocked' ? '' : 'blocked' })],
+    ['Closed in last 7 days', closedWeek.length, undefined, 'ok'],
+  ];
 
   return (
     <>
@@ -118,6 +188,7 @@ export function Today(props: {
           <h1 className="day-title">{longDate(today)}</h1>
           <p className="day-summary" data-testid="day-summary">
             {summary}
+            {filtered && <span className="filtered-note"> · filtered: {describeView(f)}</span>}
             {props.storageNote}
           </p>
         </div>
@@ -131,71 +202,96 @@ export function Today(props: {
         </div>
       </div>
 
-      <QuickAdd today={today} onAdd={props.onQuickAdd} />
+      <div className="today-grid">
+        <div className="today-main">
+          <QuickAdd today={today} onAdd={props.onQuickAdd} />
+          <FilterBar f={f} set={setF} tasks={props.tasks} contacts={contacts} />
 
-      <div className="list-head">
-        <div className="filters" role="group" aria-label="Who is doing it">
-          {(
-            [
-              ['all', 'All'],
-              ['mine', 'Mine'],
-              ['others', 'Others'],
-            ] as const
-          ).map(([v, l]) => (
-            <button key={v} type="button" aria-pressed={filter === v} onClick={() => setFilter(v)}>
-              {l}
-            </button>
-          ))}
+          {MAIN_GROUPS.map((g) => {
+            const items = list[g.key];
+            if (g.key !== 'attention' && items.length === 0) return null;
+            const head = (
+              <>
+                <span>{g.title}</span>
+                <span className="group-count" data-testid={`count-${g.key}`}>
+                  {items.length}
+                </span>
+              </>
+            );
+            if (g.collapsed)
+              return (
+                <details className="group" key={g.key} data-testid={`group-${g.key}`}>
+                  <summary className="group-head">{head}</summary>
+                  {renderItems(items)}
+                </details>
+              );
+            return (
+              <section className={`group ${g.tone ?? ''}`} key={g.key} data-testid={`group-${g.key}`} aria-label={g.title}>
+                <h2 className="group-head">{head}</h2>
+                {g.hint && <p className="group-hint">{g.hint}</p>}
+                {items.length === 0 ? (
+                  <p className="empty all-clear">
+                    <CheckCircle2 className="icon" />
+                    {attentionEmpty}
+                  </p>
+                ) : (
+                  renderItems(items)
+                )}
+              </section>
+            );
+          })}
         </div>
-      </div>
 
-      {GROUPS.map((g) => {
-        const items = list[g.key];
-        if (g.key !== 'attention' && items.length === 0) return null;
-        const head = (
-          <>
-            <span>{g.title}</span>
-            <span className="group-count" data-testid={`count-${g.key}`}>
-              {items.length}
-            </span>
-          </>
-        );
-        if (g.collapsed)
-          return (
-            <details className={`group ${g.tone ?? ''}`} key={g.key} data-testid={`group-${g.key}`}>
-              <summary className="group-head">{head}</summary>
-              {renderItems(items)}
-            </details>
-          );
-        return (
-          <section className={`group ${g.tone ?? ''}`} key={g.key} data-testid={`group-${g.key}`} aria-label={g.title}>
-            <h2 className="group-head">{head}</h2>
-            {g.hint && <p className="group-hint">{g.hint}</p>}
-            {items.length === 0 ? (
-              <p className="empty all-clear">
-                <CheckCircle2 className="icon" />
-                {attentionEmpty}
-              </p>
-            ) : (
-              renderItems(items)
-            )}
+        <aside className="today-side" aria-label="Overview and long-term work">
+          <section className="side-card overview" aria-label="Overview">
+            <h2 className="side-title">Overview{filtered ? ' (filtered)' : ''}</h2>
+            <dl>
+              {overview.map(([label, value, onClick, tone]) => (
+                <div key={label} className={`ov-row ${tone ?? ''}${value === 0 ? ' zero' : ''}`}>
+                  <dt>{onClick ? <button type="button" className="linkish" onClick={onClick}>{label}</button> : label}</dt>
+                  <dd data-testid={`ov-${label}`}>{value}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
-        );
-      })}
 
-      {done.length > 0 && (
-        <details className="group done-group">
-          <summary className="group-head">
-            <span>Done today</span>
-            <span className="group-count">{done.length}</span>
-          </summary>
-          {done.map((t) => (
-            <TaskRow key={t.id} task={t} contacts={contacts} today={today} onOpen={props.onOpen} onToggle={props.onToggle} />
-          ))}
-        </details>
-      )}
+          <details className="side-card group" data-testid="group-longterm" open={list.longterm.length > 0 && list.longterm.length <= 4}>
+            <summary className="group-head">
+              <span>Long-term work</span>
+              <span className="group-count" data-testid="count-longterm">
+                {list.longterm.length}
+              </span>
+            </summary>
+            {list.longterm.length === 0 && <p className="subtle">No long-term work without a near date.</p>}
+            {list.longterm.map((i) => (
+              <div className="lt-item" key={i.task.id}>
+                <button type="button" className="project-title" onClick={() => props.onOpen(i.task)}>
+                  {i.task.title}
+                </button>
+                {i.task.nextAction && <p className="lt-next">Next: {i.task.nextAction}</p>}
+                <p className="subtle">
+                  {i.task.milestoneDate ? `Milestone ${shortDate(i.task.milestoneDate, today)}` : 'No milestone date'}
+                  {i.task.blocker ? ' · Blocked' : ''}
+                </p>
+              </div>
+            ))}
+          </details>
 
-      {props.outlookSlot}
+          {done.length > 0 && (
+            <details className="side-card group done-group">
+              <summary className="group-head">
+                <span>Done today</span>
+                <span className="group-count">{done.length}</span>
+              </summary>
+              {done.map((t) => (
+                <TaskRow key={t.id} task={t} contacts={contacts} today={today} onOpen={props.onOpen} onToggle={props.onToggle} />
+              ))}
+            </details>
+          )}
+
+          {props.outlookSlot}
+        </aside>
+      </div>
     </>
   );
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CalendarClock, Mail, MoreHorizontal, Phone } from 'lucide-react';
+import { Check, CalendarClock, Clock, Mail, MapPin, MoreHorizontal, Phone, User, Wrench } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { STATUS_LABEL } from '../types';
 import { relativeDate, wallClockDate, wallClockTime, shortDate } from '../lib/dates';
-import { isOverdue, needsDetails, ownerLabel, waitingText, type DailyItem, type QuickAction } from '../lib/tasks';
+import { createdDate, daysLabel, daysOpen, equipmentText, isOverdue, needsDetails, ownerLabel, waitingText, type DailyItem, type QuickAction } from '../lib/tasks';
 
 function RowMenu({ task, onQuick, onOpen }: { task: Task; onQuick: (a: QuickAction) => void; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
@@ -105,7 +105,10 @@ export function TaskRow(props: {
           {t.title}
         </button>
         <div className="detail">
-          <span>{[context, ownerLabel(t, props.contacts)].filter(Boolean).join(' · ')}</span>
+          <span>{[equipmentText(t), context, ownerLabel(t, props.contacts)].filter(Boolean).join(' · ')}</span>
+          <span className="age">
+            Opened {shortDate(createdDate(t), today)} · {daysLabel(daysOpen(t, today))}
+          </span>
           {(t.status === 'in_progress' || t.status === 'waiting') && (
             <span className={`tag status-${t.status}`}>{STATUS_LABEL[t.status]}</span>
           )}
@@ -151,7 +154,8 @@ export function DailyRow(props: {
   const contact = props.contacts.find((c) => c.id === t.contactId);
   const waiting = waitingText(t);
   const who = ownerLabel(t, props.contacts);
-  const context = [waiting ?? (t.owner === 'other' ? who : undefined), t.area].filter(Boolean).join(' · ');
+  const equip = equipmentText(t);
+  const days = daysOpen(t, props.today);
   const missing = needsDetails(t);
   const canLog = t.owner === 'other' || !!t.contactId || t.status === 'waiting' || !!t.nextFollowUp;
   const urgent = reasons.some((r) => r.tone === 'urgent');
@@ -186,7 +190,7 @@ export function DailyRow(props: {
             </span>
           )}
         </div>
-        {context && <div className="detail">{context}</div>}
+        {waiting && <div className="detail waiting-line">{waiting}</div>}
         {t.nextAction ? (
           <div className="next">
             <b>Next:</b> {t.nextAction}
@@ -217,6 +221,24 @@ export function DailyRow(props: {
             )}
           </div>
         )}
+      </div>
+      <div className="meta" aria-label="Details">
+        <span className="meta-line">
+          <User className="icon" aria-hidden="true" /> {who}
+        </span>
+        {equip && (
+          <span className="meta-line">
+            <Wrench className="icon" aria-hidden="true" /> {equip}
+          </span>
+        )}
+        {t.area && (
+          <span className="meta-line">
+            <MapPin className="icon" aria-hidden="true" /> {t.area}
+          </span>
+        )}
+        <span className={`meta-line age${days >= 14 ? ' old' : ''}`} title={`Created ${createdDate(t)}`}>
+          <Clock className="icon" aria-hidden="true" /> {shortDate(createdDate(t), props.today)} · {daysLabel(days)}
+        </span>
       </div>
       <RowMenu task={t} onQuick={(a) => props.onQuick(t, a)} onOpen={() => props.onOpen(t)} />
     </div>

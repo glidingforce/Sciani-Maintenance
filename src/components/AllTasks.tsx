@@ -3,6 +3,7 @@ import { FileText, Plus, Search } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { compareDaily, isOpen, matchesOwner, searchTasks, type OwnerFilter, type QuickAction } from '../lib/tasks';
 import { TaskRow } from './TaskRow';
+import { getMyName } from '../lib/settings';
 
 type View = 'open' | 'waiting' | 'longterm' | 'done' | 'archived';
 
@@ -59,7 +60,7 @@ export function AllTasks(props: {
         <label className="search">
           <Search className="icon" />
           <span className="sr-only">Search tasks</span>
-          <input className="input" type="search" placeholder="Search title, area, person, notes" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input" type="search" placeholder="Search task, equipment, room, person, notes" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
       </div>
       <div className="section-head">
@@ -74,7 +75,7 @@ export function AllTasks(props: {
           {(
             [
               ['all', 'All'],
-              ['mine', 'Mine'],
+              ['mine', getMyName()],
               ['others', 'Others'],
             ] as const
           ).map(([v, l]) => (
