@@ -79,12 +79,6 @@ export function OutlookPanel({ outlook, onSetupInfo }: { outlook: Outlook; onSet
           </ul>
         </div>
       ))}
-      <div className="outlook-row" style={{ marginTop: 8 }}>
-        <span className="subtle">{outlook.account?.username}</span>
-        <button type="button" className="linkish" onClick={() => void outlook.disconnect()}>
-          Disconnect
-        </button>
-      </div>
     </section>
   );
 }

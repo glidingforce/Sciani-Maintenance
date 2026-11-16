@@ -2,12 +2,11 @@ import { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
 import type { Dataset } from '../types';
 import type { Workspace } from '../state/useWorkspace';
-import { supabaseConfigured } from '../config';
 import { todayISO } from '../lib/dates';
 import { Sheet } from './Sheet';
 
 const MODE_TEXT = {
-  cloud: 'Shared storage (Supabase). The same records on every device where you sign in.',
+  cloud: 'Your OneDrive (Apps / Scinai Maintenance). The same records on every device where you sign in with your Scinai account.',
   local: 'This device only. Records are saved in this browser and will not appear on your other devices.',
   demo: 'Demo data. Sample records kept apart from your real tasks.',
 };
@@ -46,9 +45,9 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
         <div>
           <span className="legend">Storage</span>
           <p style={{ marginTop: 4 }}>{MODE_TEXT[ws.mode]}</p>
-          {ws.mode === 'cloud' && ws.session && <p className="subtle">Signed in as {ws.session.user.email}</p>}
-          {ws.mode === 'local' && !supabaseConfigured && (
-            <p className="subtle">To use the same tasks on desktop and iPhone, set up shared storage (see README → “Shared storage”).</p>
+          {ws.mode === 'cloud' && ws.account && <p className="subtle">Signed in as {ws.account.username}</p>}
+          {ws.mode === 'local' && (
+            <p className="subtle">To use the same tasks on every device, open the app from its web address and sign in with Microsoft.</p>
           )}
         </div>
         <div className="wait-actions">
@@ -72,7 +71,7 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
         </div>
         <p className="subtle">
           Restore adds or overwrites records by ID; it never deletes records that are not in the backup. Use it to move “This device only”
-          records into shared storage.
+          records into your OneDrive.
         </p>
         {msg && <p role="status">{msg}</p>}
         <hr className="divider" />
@@ -95,7 +94,7 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
             )}
           </div>
         </div>
-        {ws.mode === 'cloud' && ws.session && (
+        {ws.mode === 'cloud' && ws.account && (
           <>
             <hr className="divider" />
             <button type="button" className="btn" onClick={() => void ws.signOutCloud()}>

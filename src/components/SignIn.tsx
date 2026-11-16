@@ -1,72 +1,21 @@
-import { useState } from 'react';
-import { appUrl } from '../config';
-import { supabase } from '../storage/supabaseRepo';
-
-/** Email one-time-code sign-in for shared storage. The 6-digit code works inside an
- * iPhone home-screen app, where a magic link would open Safari instead. */
-export function SignIn({ onDemo }: { onDemo: () => void }) {
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function send() {
-    setBusy(true);
-    setError('');
-    const { error } = await supabase().auth.signInWithOtp({
-      email: email.trim(),
-      // Only existing users may sign in; create your user once in the Supabase dashboard.
-      options: { shouldCreateUser: false, emailRedirectTo: appUrl() },
-    });
-    setBusy(false);
-    if (error) setError(error.message);
-    else setSent(true);
-  }
-
-  async function verify() {
-    setBusy(true);
-    setError('');
-    const { error } = await supabase().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
-    setBusy(false);
-    if (error) setError(error.message);
-  }
-
+/** Microsoft work-account sign-in. Your tasks are stored in your own OneDrive. */
+export function SignIn(props: { onSignIn: () => void; onDemo: () => void; error: string }) {
   return (
     <div className="center-card">
       <h1 className="page-title">Sign in</h1>
-      <p className="subtle">Your tasks are stored privately and shared between your own devices.</p>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void (sent ? verify() : send());
-        }}
-      >
-        <label className="field">
-          <span>Email</span>
-          <input type="email" autoComplete="email" required value={email} disabled={sent} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        {sent && (
-          <>
-            <p className="subtle">We sent a sign-in email. Enter the code from it, or open its link on this device.</p>
-            <label className="field">
-              <span>Code</span>
-              <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />
-            </label>
-          </>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? 'Please wait…' : sent ? 'Sign in' : 'Email me a code'}
-        </button>
-        {sent && (
-          <button type="button" className="linkish" onClick={() => setSent(false)}>
-            Use a different email
-          </button>
-        )}
-        {error && <p className="error-text">{error}</p>}
-      </form>
-      <button type="button" className="linkish" onClick={onDemo}>
+      <p>
+        Sign in with your Scinai Microsoft account. Your tasks are kept in a private app folder in your OneDrive, so the same records open
+        on your phone and computer.
+      </p>
+      <p className="subtle">
+        The first time, Microsoft asks you to allow access to your calendar and to this app's own OneDrive folder. The app can't see your
+        other files.
+      </p>
+      <button type="button" className="btn btn-primary" onClick={props.onSignIn}>
+        Sign in with Microsoft
+      </button>
+      {props.error && <p className="error-text">{props.error}</p>}
+      <button type="button" className="linkish" onClick={props.onDemo}>
         Look around with demo data instead
       </button>
     </div>

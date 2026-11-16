@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '../types';
-import { outlookConfigured } from '../config';
+import { canSignIn, outlookConfigured } from '../config';
 import { todayISO, GRAPH_TIME_ZONE } from '../lib/dates';
 import { uid } from '../lib/tasks';
-import { SignInRequired, currentAccount, getToken, initOutlookAuth, signIn, signOut } from '../outlook/auth';
+import { SignInRequired, currentAccount, getToken, initAuth, signIn } from '../auth/msal';
 import {
   GraphError,
   deleteLinkedEvent,
@@ -39,7 +39,7 @@ function describe(e: unknown): string {
 /** Agenda + task/event links. Refreshes on open, on return to the app, and on demand.
  * A static site cannot run while closed, so nothing syncs in the background. */
 export function useOutlook(tasks: Task[], saveTask: (t: Task) => Promise<boolean>, enabled: boolean) {
-  const [status, setStatus] = useState<OutlookStatus>(outlookConfigured ? 'initializing' : 'not-configured');
+  const [status, setStatus] = useState<OutlookStatus>(outlookConfigured && canSignIn() ? 'initializing' : 'not-configured');
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,8 +48,8 @@ export function useOutlook(tasks: Task[], saveTask: (t: Task) => Promise<boolean
   tasksRef.current = tasks;
 
   useEffect(() => {
-    if (!outlookConfigured) return;
-    initOutlookAuth()
+    if (!outlookConfigured || !canSignIn()) return;
+    initAuth()
       .then((acc) => setStatus(acc ? 'connected' : 'disconnected'))
       .catch((e) => {
         setStatus('error');
@@ -160,11 +160,6 @@ export function useOutlook(tasks: Task[], saveTask: (t: Task) => Promise<boolean
     refreshedAt,
     account: status === 'connected' ? currentAccount() : null,
     connect: () => signIn().catch((e) => setError(describe(e))),
-    disconnect: async () => {
-      await signOut();
-      setAgenda([]);
-      setStatus('disconnected');
-    },
     refresh,
     schedule,
     unschedule,

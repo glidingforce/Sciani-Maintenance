@@ -1,96 +1,90 @@
 # Scinai · Facility Maintenance
 
-A personal maintenance workspace for daily focus, follow-ups with contractors and vendors, and long-term next actions. It works on desktop and iPhone and uses the "Scinai Signature" design.
+A personal maintenance workspace for daily focus, contractor and vendor follow-ups, and long-term next actions. It works on desktop and iPhone, uses the "Scinai Signature" design, and is hosted as one static page on GitHub Pages.
 
-- **Frontend:** React + TypeScript + Vite, hosted as static files on GitHub Pages.
-- **Shared storage:** Supabase (Postgres + row-level security + email sign-in). Optional. Without it, the app runs in a clearly labeled **This device only** mode.
-- **Outlook:** Microsoft sign-in (MSAL, PKCE) + Microsoft Graph, using delegated `Calendars.ReadWrite`. Optional. While it is not configured or not connected, the app shows only a small "Connect Outlook" entry.
+- **Sign-in:** your Scinai Microsoft account (Microsoft Entra app "Scinai Maintenance", browser PKCE flow, no client secret).
+- **Storage:** one JSON file in a private app folder in your OneDrive: `Apps/Scinai Maintenance/maintenance-data.json`. You get the same records on every device where you sign in.
+- **Outlook:** a 7-day agenda, plus explicitly scheduling a task as an event in your own calendar.
 
-No task data lives in this repository. Backups that you export are git-ignored.
+No task data is stored in this repository.
 
-## Try it on your PC (no install)
+## Use it
 
-Double-click `docs/index.html`. That folder is the finished app: one self-contained page plus the logo and icons.
-Records you create while testing this way are saved in that browser for that file only.
+Open `https://glidingforce.github.io/Sciani-Maintenance/` and sign in with Microsoft. The first time, Microsoft asks you to allow:
+- `Calendars.ReadWrite`: your own calendar.
+- `Files.ReadWrite.AppFolder`: only this app's folder in your OneDrive. The app cannot see your other files.
 
-## Rebuild after code changes (needs Node.js)
+On iPhone: open the address in Safari, sign in, then Share → Add to Home Screen.
+
+**Double-clicking `docs/index.html`** opens the app in "This device only" mode for testing. Microsoft sign-in only works from a web address.
+
+## Storage behavior
+
+- Every change is written to the OneDrive file with the file's version tag (eTag). If another device saved in between, the app re-reads the file and applies your single change again, so edits to different tasks on different devices are both kept. If the same task is edited on two devices, the later save wins.
+- The app shows "Saved" only after OneDrive confirms. If a save fails (offline, sign-in expired, access refused), the change is undone on screen and the reason is shown.
+- Other devices see changes when the app is opened, brought back to the foreground, or reloaded.
+- **Backup:** account menu → Export backup (JSON). OneDrive's own version history also keeps earlier versions of the data file.
+- **Restore** adds or overwrites by ID and never deletes records. Use it to move test records from "This device only" into OneDrive.
+- **Demo data** is kept in a separate browser key and never mixed with real records.
+
+## If OneDrive refuses
+
+Microsoft documents app folders as working for work accounts, but an older Microsoft page says `Files.ReadWrite.AppFolder` is for personal accounts only. If sign-in works but the app shows **"OneDrive refused access to the app folder (403)"**:
+1. Check API permissions in the Entra app. If "Admin consent required" shows Yes, or the status is not granted, ask IT to grant admin consent.
+2. If it still fails, the fallback is the broader `Files.ReadWrite` permission (your own OneDrive files). That needs a small code change: tell Claude.
+3. The long-term option is a SharePoint site created by IT (lists for tasks and for colleagues' malfunction reports).
+
+## Outlook
+
+- Recurring meetings show as individual occurrences. Times are in Israel time: Graph converts them using "Israel Standard Time", including daylight-saving changes.
+- Only tasks you explicitly schedule go into Outlook, at most one event per task.
+  - The event ID is stored on the task, so rescheduling updates the same event.
+  - A Graph `transactionId` is saved before the first create, so a retry never creates a duplicate.
+- An event moved in Outlook updates the task's scheduled time. An event deleted in Outlook marks the task "Removed from Outlook" and keeps the task. Calendar changes never complete a task.
+- Refresh happens on opening the app, on returning to it, and on the Refresh button. A static page cannot run while it is closed, so there is no background sync.
+
+## Entra app registration (already done)
+
+| Setting | Value |
+|---|---|
+| Client ID | `85bc0418-f30d-483e-9eeb-fc04682ce3a9` |
+| Tenant ID | `98944576-fbe3-4007-8f32-200ac12ad676` |
+| Platform | Single-page application |
+| Redirect URIs | `https://glidingforce.github.io/Sciani-Maintenance/` and `http://localhost:5173/` |
+| Delegated permissions | `User.Read`, `Calendars.ReadWrite`, `Files.ReadWrite.AppFolder` |
+
+The IDs are set in `src/config.ts`. They are not secrets. `Sites.ReadWrite.All` and `Sites.Manage.All` are not used by this version and can be removed from the registration.
+
+## Publish on GitHub Pages
+
+1. Upload the project, including the `docs` folder, to the repository.
+2. Go to Settings → Pages → Source: **Deploy from a branch**, branch **main**, folder **/docs**.
+3. After a code change, run `npm run build` and upload the new `docs/index.html`.
+
+The repository name must stay `Sciani-Maintenance`, or the redirect URI in Entra must be updated to match.
+
+## Develop (needs Node.js)
 
 ```bash
 npm install
-npm run dev      # live development at http://localhost:5173
+npm run dev      # http://localhost:5173 (sign-in works here too)
 npm test         # unit tests
-npm run build    # writes the finished app to docs/
+npm run build    # writes docs/index.html
 ```
-
-To turn on Supabase or Outlook, copy `env.example.txt` to a file named `.env.local`, fill in the values, and run `npm run build` again.
-The values are compiled into `docs/index.html`; they are public by design (see below).
-
-## Storage modes
-
-| Mode | When | Where the records live |
-|---|---|---|
-| Shared | `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set | Supabase. You get the same records on every device where you sign in. |
-| This device only | Supabase is not configured | This browser's localStorage. Not synced to other devices. |
-| Demo | Turned on from the account menu | A separate localStorage key. Never mixed with real records. |
-
-**Export backup** (account menu) downloads all records as JSON. **Restore** adds records from a backup or overwrites them by ID. It never deletes anything. Use it to move "This device only" records into shared storage after you set that up.
-
-## Shared storage (Supabase), about 10 minutes
-
-1. Create a free project at <https://supabase.com>. Pick an EU region (for example Frankfurt).
-2. In **SQL Editor**, run `supabase/schema.sql`. This creates the `tasks` and `contacts` tables, restricted to their owner by row-level security.
-3. In **Authentication → Users → Add user**, create your own user with your email.
-4. In **Authentication → Sign In / Providers**, turn off **Allow new users to sign up**. The app also asks Supabase not to create users (`shouldCreateUser: false`).
-5. In **Authentication → Emails → Magic Link**, add `{{ .Token }}` to the template so the email includes a 6-digit code. The code is how you sign in from the iPhone home-screen app, because email links open in Safari instead.
-6. In **Authentication → URL Configuration**, set **Site URL** to your Pages URL (`https://<user>.github.io/<repo>/`) and add it under **Redirect URLs**.
-7. Copy **Project URL** and the **anon public** key (Project Settings → API).
-
-The anon key is meant to be public. Your data is protected by row-level security and your sign-in.
-
-## Outlook 365 (needs your Microsoft 365 tenant, possibly IT approval)
-
-1. Go to Entra admin center → **App registrations → New registration**.
-   - Name: `Scinai Maintenance`. Supported accounts: *this organizational directory only*.
-   - Redirect URI: platform **Single-page application (SPA)**, value `https://<user>.github.io/<repo>/` (with the trailing slash). Also add `http://localhost:5173/` for local development. Outlook sign-in does not work from a double-clicked file.
-2. **API permissions → Add → Microsoft Graph → Delegated → `Calendars.ReadWrite`**. `User.Read` is already present. If your organization blocks user consent, ask IT to **Grant admin consent**.
-3. Do **not** create a client secret. The app is a public client and uses the browser PKCE flow.
-4. Copy **Application (client) ID** and **Directory (tenant) ID**.
-
-How the integration behaves:
-- After you connect, the Today page shows the next 7 days of your own calendar. Recurring meetings show as individual occurrences.
-- Only tasks you explicitly schedule go into Outlook ("Schedule in Outlook" in a task). Each task has at most one linked event.
-  - The event ID is stored on the task, so rescheduling updates the same event.
-  - A Graph `transactionId` is saved before the first create, so if the create is retried after a lost response, Graph returns the same event instead of making a duplicate.
-- If you move a linked event in Outlook, the task shows the new time after the next refresh. If you delete it in Outlook, the task shows "Removed from Outlook" and the task itself is kept. Calendar changes never complete a task. Renaming a task updates the event title if the title hadn't been changed in Outlook.
-- Refresh happens when you open the app, when you return to it, and when you press Refresh. **A static site cannot run while it is closed.** Continuous background sync would need a server with Graph change notifications, and that is not included.
-- Times are entered and shown in Israel time (`Asia/Jerusalem`, Graph zone `Israel Standard Time`). Graph converts them to and from Israel time, including daylight saving changes. The browser's own time zone is never used for date arithmetic.
-- If company policy blocks the app, leave the Microsoft values empty. The dashboard works fully without a calendar.
-
-## Publish on GitHub Pages (no workflow, no hidden folders)
-
-1. Upload the project to the repository, including the `docs` folder. Drag-and-drop in the browser is fine.
-2. **Settings → Pages → Build and deployment → Source: Deploy from a branch**, Branch **main**, folder **/docs**, Save.
-3. After about a minute the app is at `https://<user>.github.io/<repo>/`. Paths are relative, so any repository name works.
-4. Every time `docs/` changes (after `npm run build`), upload the new `docs/index.html` again.
-5. On iPhone: open the URL in Safari → Share → Add to Home Screen.
-
-GitHub Pages sites are public even from a private repository. That is acceptable here because the page contains no task data;
-records are only readable after signing in to shared storage. Never upload a backup export to the repository.
 
 ## Project layout
 
 ```
 src/
-  App.tsx                 shell, navigation, dialogs
-  components/             Today, AllTasks, Contacts, TaskEditor, FollowUpDialog, ScheduleDialog, OutlookPanel, DataPanel, SignIn
-  lib/tasks.ts            ordering, counts, follow-up logging (pure functions)
-  lib/dates.ts            Asia/Jerusalem date handling
-  storage/                local, demo and Supabase repositories
-  outlook/                MSAL sign-in and Graph calendar calls
-  state/                  useWorkspace (data + save state), useOutlook
-  styles/tokens.css       Scinai design tokens
-supabase/schema.sql       tables + row-level security
-tests/                    unit tests (ordering, counts, follow-ups, storage, Outlook linking, DST)
+  App.tsx              shell, navigation, dialogs
+  components/          Today, AllTasks, Contacts, TaskEditor, FollowUpDialog, ScheduleDialog, OutlookPanel, DataPanel, SignIn
+  lib/tasks.ts         ordering, counts, follow-up logging
+  lib/dates.ts         Asia/Jerusalem date handling
+  auth/msal.ts         Microsoft sign-in
+  storage/             OneDrive, local and demo storage
+  outlook/graph.ts     calendar calls
+  state/               useWorkspace (data + save state), useOutlook
+  styles/tokens.css    Scinai design tokens
+tests/                 unit tests (ordering, counts, follow-ups, storage, OneDrive merging, Outlook linking, DST)
+docs/                  the built app (what GitHub Pages serves)
 ```
-
-Daily ordering puts overdue unfinished work first, then priority (High → Normal → Low), then due date. Counts come straight from the saved records. The app never assigns safety or regulatory criticality on its own; priority is whatever you set.

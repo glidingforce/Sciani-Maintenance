@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import type { AccountInfo } from '@azure/msal-browser';
 import type { Contact, Dataset, Task } from '../types';
-import { supabaseConfigured } from '../config';
+import { canSignIn, microsoftConfigured } from '../config';
 import { LocalRepo } from '../storage/localRepo';
-import { SupabaseRepo, supabase } from '../storage/supabaseRepo';
-import type { Repo, StorageMode } from '../storage/repo';
+import { OneDriveRepo } from '../storage/oneDriveRepo';
+import { SaveError, type Repo, type StorageMode } from '../storage/repo';
+import { SignInRequired, getToken, initAuth, signIn, signOut } from '../auth/msal';
 
 const DEMO_FLAG = 'scinai-maintenance:demo-mode';
 
@@ -22,13 +23,23 @@ function preferredMode(): StorageMode {
   } catch {
     /* storage blocked */
   }
-  return supabaseConfigured ? 'cloud' : 'local';
+  return cloudAvailable ? 'cloud' : 'local';
+}
+
+/** OneDrive storage needs Microsoft sign-in, which needs a web address (not a double-clicked file). */
+const cloudAvailable = microsoftConfigured && canSignIn();
+
+function message(e: unknown, fallback: string) {
+  if (e instanceof SignInRequired) return 'Microsoft sign-in expired. Open the account menu and sign in again.';
+  if (e instanceof SaveError) return e.message;
+  return e instanceof Error ? e.message : fallback;
 }
 
 export function useWorkspace() {
   const [mode, setMode] = useState<StorageMode>(preferredMode);
-  const [session, setSession] = useState<Session | null>(null);
-  const [authChecked, setAuthChecked] = useState(!supabaseConfigured);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [authChecked, setAuthChecked] = useState(!cloudAvailable);
+  const [authError, setAuthError] = useState('');
   const [data, setData] = useState<Dataset>({ tasks: [], contacts: [] });
   const [load, setLoad] = useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
@@ -36,22 +47,19 @@ export function useWorkspace() {
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  // Supabase session tracking (cloud mode only).
+  // Microsoft sign-in (completes a returning redirect).
   useEffect(() => {
-    if (!supabaseConfigured) return;
-    const db = supabase();
-    db.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthChecked(true);
-    });
-    const { data: sub } = db.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+    if (!cloudAvailable) return;
+    initAuth()
+      .then((a) => setAccount(a))
+      .catch((e) => setAuthError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setAuthChecked(true));
   }, []);
 
   const repo: Repo | null = useMemo(() => {
-    if (mode === 'cloud') return session ? new SupabaseRepo() : null;
+    if (mode === 'cloud') return account ? new OneDriveRepo({ getToken }) : null;
     return new LocalRepo(mode);
-  }, [mode, session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, account?.homeAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(async () => {
     if (!repo) return;
@@ -61,17 +69,21 @@ export function useWorkspace() {
       setLoad('ready');
       setLoadError('');
     } catch (e) {
+      if (e instanceof SignInRequired) {
+        setLoad('needs-sign-in');
+        return;
+      }
       setLoad('error');
-      setLoadError(e instanceof Error ? e.message : String(e));
+      setLoadError(message(e, 'Could not load.'));
     }
   }, [repo]);
 
   useEffect(() => {
     if (mode === 'cloud' && !authChecked) return setLoad('loading');
-    if (mode === 'cloud' && !session) return setLoad('needs-sign-in');
+    if (mode === 'cloud' && !account) return setLoad('needs-sign-in');
     setLoad('loading');
     void reload();
-  }, [mode, authChecked, session, reload]);
+  }, [mode, authChecked, account, reload]);
 
   // Pick up edits made on another device when returning to the app.
   useEffect(() => {
@@ -99,7 +111,7 @@ export function useWorkspace() {
         return true;
       } catch (e) {
         setData(before);
-        setSave({ kind: 'error', message: `${e instanceof Error ? e.message : 'Save failed.'} Your change was undone.` });
+        setSave({ kind: 'error', message: `Not saved: ${message(e, 'Save failed.')} Your change was undone.` });
         return false;
       }
     },
@@ -119,7 +131,7 @@ export function useWorkspace() {
         setSave({ kind: 'saved' });
         return true;
       } catch (e) {
-        setSave({ kind: 'error', message: e instanceof Error ? e.message : 'Delete failed.' });
+        setSave({ kind: 'error', message: message(e, 'Delete failed.') });
         return false;
       }
     },
@@ -136,7 +148,7 @@ export function useWorkspace() {
         setSave({ kind: 'saved' });
         return true;
       } catch (e) {
-        setSave({ kind: 'error', message: e instanceof Error ? e.message : 'Restore failed.' });
+        setSave({ kind: 'error', message: message(e, 'Restore failed.') });
         await reload();
         return false;
       }
@@ -152,7 +164,7 @@ export function useWorkspace() {
       /* storage blocked: demo flag lasts for this session only */
     }
     setSave({ kind: 'idle' });
-    setMode(on ? 'demo' : supabaseConfigured ? 'cloud' : 'local');
+    setMode(on ? 'demo' : cloudAvailable ? 'cloud' : 'local');
   }, []);
 
   const resetDemo = useCallback(async () => {
@@ -162,13 +174,21 @@ export function useWorkspace() {
   }, [mode, reload]);
 
   const signOutCloud = useCallback(async () => {
-    if (supabaseConfigured) await supabase().auth.signOut();
+    await signOut();
+    setAccount(null);
     setData({ tasks: [], contacts: [] });
+  }, []);
+
+  const signInCloud = useCallback(() => {
+    setAuthError('');
+    signIn().catch((e) => setAuthError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   return {
     mode,
-    session,
+    account,
+    authError,
+    signInCloud,
     data,
     load,
     loadError,

@@ -97,7 +97,7 @@ export default function App() {
     [ws, outlook],
   );
 
-  const who = nameFrom(ws.session?.user.email ?? outlook.account?.name);
+  const who = nameFrom(ws.account?.name ?? ws.account?.username);
   const openTask = (t: Task) => setEditing({ task: t, isNew: false });
   const addTask = () => setEditing({ task: newTask(), isNew: true });
   const latest = (t: Task) => ws.data.tasks.find((x) => x.id === t.id) ?? t;
@@ -138,7 +138,10 @@ export default function App() {
     ) : ws.mode === 'local' ? (
       <div className="notice-wrap">
         <div className="notice" role="note">
-          <b>This device only.</b> Saved in this browser; not synced to your other devices.
+          <b>This device only.</b>{' '}
+          {window.location.protocol === 'file:'
+            ? 'Opened from a file: tasks are saved in this browser only. Microsoft sign-in works from the web address.'
+            : 'Saved in this browser; not synced to your other devices.'}
           <button type="button" className="linkish" onClick={() => setShowData(true)}>
             Details &amp; backup
           </button>
@@ -148,7 +151,7 @@ export default function App() {
 
   let body: React.ReactNode;
   if (ws.load === 'needs-sign-in') {
-    body = <SignIn onDemo={() => ws.setDemo(true)} />;
+    body = <SignIn onSignIn={ws.signInCloud} onDemo={() => ws.setDemo(true)} error={ws.authError} />;
   } else if (ws.load === 'loading') {
     body = <p className="center-card subtle" role="status">Loading your tasks…</p>;
   } else if (ws.load === 'error') {
@@ -245,16 +248,10 @@ export default function App() {
       )}
       {showData && <DataPanel ws={ws} onClose={() => setShowData(false)} />}
       {showOutlookSetup && (
-        <Sheet title="Outlook is not set up yet" onClose={() => setShowOutlookSetup(false)}>
+        <Sheet title="Outlook needs the web address" onClose={() => setShowOutlookSetup(false)}>
           <div className="form">
-            <p>
-              Connecting Outlook needs a Microsoft Entra app registration for this site. Your IT team may need to approve the
-              <b> Calendars.ReadWrite</b> permission.
-            </p>
-            <p className="subtle">
-              Once the client ID and tenant ID are added to the build (README → “Outlook 365”), this button signs you in with Microsoft.
-              Until then the task dashboard works normally without a calendar.
-            </p>
+            <p>Microsoft sign-in, OneDrive storage and the Outlook agenda only work when the app is opened from its web address, not from a file on your computer.</p>
+            <p className="subtle">Open https://glidingforce.github.io/Sciani-Maintenance/ and sign in with your Scinai account.</p>
           </div>
         </Sheet>
       )}

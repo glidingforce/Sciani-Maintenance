@@ -1,0 +1,134 @@
+import type { Contact, Dataset, Task } from '../types';
+import { SaveError, type Repo } from './repo';
+
+export const DATA_FILE = 'maintenance-data.json';
+const ITEM = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${DATA_FILE}`;
+
+export interface DriveDeps {
+  getToken: () => Promise<string>;
+  fetchImpl?: typeof fetch;
+}
+
+type Mutation = (d: Dataset) => Dataset;
+
+const upsert = <T extends { id: string }>(list: T[], item: T) => {
+  const i = list.findIndex((x) => x.id === item.id);
+  return i >= 0 ? list.map((x) => (x.id === item.id ? item : x)) : [...list, item];
+};
+
+function explain(status: number, body: string): string {
+  if (status === 401) return 'Microsoft sign-in expired. Sign in again.';
+  if (status === 403)
+    return 'OneDrive refused access to the app folder (403). Scinai may require admin approval, or the work-account app folder is not available; see README → "If OneDrive refuses".';
+  if (status === 507) return 'Your OneDrive is full.';
+  if (status === 429 || status === 503) return 'OneDrive is busy. Try again in a moment.';
+  return `OneDrive error ${status}${body ? `: ${body}` : ''}`;
+}
+
+/**
+ * All records live in one JSON file in this app's private OneDrive folder
+ * (Apps/Scinai Maintenance/maintenance-data.json), so every signed-in device
+ * reads and writes the same data.
+ *
+ * Every change is applied to the latest copy of the file and written with
+ * If-Match on its eTag. If another device saved in between (412), the app
+ * re-reads the file and applies the same single-record change again, so
+ * edits to different tasks on different devices are never lost.
+ */
+export class OneDriveRepo implements Repo {
+  readonly mode = 'cloud' as const;
+  private etag: string | null = null;
+  private data: Dataset = { tasks: [], contacts: [] };
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(private deps: DriveDeps) {}
+
+  private async request(url: string, init: RequestInit = {}, auth = true): Promise<Response> {
+    const headers = new Headers(init.headers);
+    if (auth) headers.set('Authorization', `Bearer ${await this.deps.getToken()}`);
+    try {
+      return await (this.deps.fetchImpl ?? fetch)(url, { ...init, headers });
+    } catch (e) {
+      throw new SaveError('Could not reach OneDrive. Check your internet connection.', e);
+    }
+  }
+
+  private async fail(res: Response): Promise<never> {
+    let msg = '';
+    try {
+      msg = (await res.json())?.error?.message ?? '';
+    } catch {
+      /* no JSON body */
+    }
+    throw new SaveError(explain(res.status, msg));
+  }
+
+  async load(): Promise<Dataset> {
+    const meta = await this.request(ITEM);
+    if (meta.status === 404) {
+      // First use: no file yet. Nothing is created until the first save.
+      this.etag = null;
+      this.data = { tasks: [], contacts: [] };
+      return this.data;
+    }
+    if (!meta.ok) return this.fail(meta);
+    const item = await meta.json();
+    const dl: string | undefined = item['@microsoft.graph.downloadUrl'];
+    const content = dl ? await this.request(dl, {}, false) : await this.request(`${ITEM}:/content`);
+    if (!content.ok) return this.fail(content);
+    const parsed = (await content.json()) as Partial<Dataset>;
+    this.etag = item.eTag ?? null;
+    this.data = { tasks: parsed.tasks ?? [], contacts: parsed.contacts ?? [] };
+    return this.data;
+  }
+
+  private mutate(fn: Mutation): Promise<void> {
+    const run = async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const next = fn(structuredClone(this.data));
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        // Only overwrite the exact version we read; create only if nobody else did.
+        if (this.etag) headers['If-Match'] = this.etag;
+        else headers['If-None-Match'] = '*';
+        const res = await this.request(`${ITEM}:/content`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ app: 'scinai-maintenance', version: 1, savedAt: new Date().toISOString(), ...next }),
+        });
+        if (res.status === 412 || res.status === 409) {
+          await this.load(); // someone else saved: refresh and re-apply this change
+          continue;
+        }
+        if (!res.ok) return this.fail(res);
+        const item = await res.json();
+        this.etag = item.eTag ?? null;
+        this.data = next;
+        return;
+      }
+      throw new SaveError('OneDrive kept changing while saving. Refresh and try again.');
+    };
+    const p = this.queue.then(run, run);
+    this.queue = p.catch(() => undefined);
+    return p;
+  }
+
+  saveTask(task: Task) {
+    return this.mutate((d) => ({ ...d, tasks: upsert(d.tasks, task) }));
+  }
+
+  saveContact(contact: Contact) {
+    return this.mutate((d) => ({ ...d, contacts: upsert(d.contacts, contact) }));
+  }
+
+  deleteContact(id: string) {
+    return this.mutate((d) => ({ ...d, contacts: d.contacts.filter((c) => c.id !== id) }));
+  }
+
+  replaceAll(backup: Dataset) {
+    // Restore adds or overwrites by id; it never deletes newer records.
+    return this.mutate((d) => ({
+      tasks: backup.tasks.reduce(upsert, d.tasks),
+      contacts: backup.contacts.reduce(upsert, d.contacts),
+    }));
+  }
+}
