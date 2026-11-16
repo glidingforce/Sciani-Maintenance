@@ -8,6 +8,7 @@ import { SaveError, type Repo, type StorageMode } from '../storage/repo';
 import { SignInRequired, getToken, initAuth, signIn, signOut } from '../auth/msal';
 
 const DEMO_FLAG = 'scinai-maintenance:demo-mode';
+const LOCAL_FLAG = 'scinai-maintenance:local-only';
 
 export type SaveState =
   | { kind: 'idle' }
@@ -20,6 +21,7 @@ export type LoadState = 'loading' | 'ready' | 'needs-sign-in' | 'error';
 function preferredMode(): StorageMode {
   try {
     if (localStorage.getItem(DEMO_FLAG) === '1') return 'demo';
+    if (localStorage.getItem(LOCAL_FLAG) === '1') return 'local';
   } catch {
     /* storage blocked */
   }
@@ -164,7 +166,20 @@ export function useWorkspace() {
       /* storage blocked: demo flag lasts for this session only */
     }
     setSave({ kind: 'idle' });
-    setMode(on ? 'demo' : cloudAvailable ? 'cloud' : 'local');
+    setMode(on ? 'demo' : preferredMode());
+  }, []);
+
+  /** Keep using the app on this device without Microsoft sign-in (e.g. while waiting for IT approval). */
+  const setLocalOnly = useCallback((on: boolean) => {
+    try {
+      localStorage.removeItem(DEMO_FLAG);
+      if (on) localStorage.setItem(LOCAL_FLAG, '1');
+      else localStorage.removeItem(LOCAL_FLAG);
+    } catch {
+      /* storage blocked */
+    }
+    setSave({ kind: 'idle' });
+    setMode(on || !cloudAvailable ? 'local' : 'cloud');
   }, []);
 
   const resetDemo = useCallback(async () => {
@@ -200,6 +215,8 @@ export function useWorkspace() {
     deleteContact,
     restore,
     setDemo,
+    setLocalOnly,
+    cloudAvailable,
     resetDemo,
     signOutCloud,
   };

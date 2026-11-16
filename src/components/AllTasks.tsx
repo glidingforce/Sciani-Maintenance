@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import type { Contact, Task } from '../types';
-import { compareDaily, isOpen, matchesOwner, searchTasks, type OwnerFilter } from '../lib/tasks';
+import { compareDaily, isOpen, matchesOwner, searchTasks, type OwnerFilter, type QuickAction } from '../lib/tasks';
 import { TaskRow } from './TaskRow';
 
 type View = 'open' | 'waiting' | 'longterm' | 'done' | 'archived';
@@ -21,6 +21,7 @@ export function AllTasks(props: {
   onAdd: () => void;
   onOpen: (t: Task) => void;
   onToggle: (t: Task) => void;
+  onQuick: (t: Task, a: QuickAction) => void;
 }) {
   const [view, setView] = useState<View>('open');
   const [owner, setOwner] = useState<OwnerFilter>('all');
@@ -79,7 +80,7 @@ export function AllTasks(props: {
       </div>
       {rows.length === 0 && <p className="empty">{query ? 'No matching tasks.' : 'Nothing here.'}</p>}
       {rows.map((t) => (
-        <TaskRow key={t.id} task={t} contacts={props.contacts} today={props.today} onOpen={props.onOpen} onToggle={props.onToggle} />
+        <TaskRow key={t.id} task={t} contacts={props.contacts} today={props.today} onOpen={props.onOpen} onToggle={props.onToggle} onQuick={props.onQuick} />
       ))}
     </>
   );

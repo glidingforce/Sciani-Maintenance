@@ -16,7 +16,16 @@ Open `https://glidingforce.github.io/Sciani-Maintenance/` and sign in with Micro
 
 On iPhone: open the address in Safari, sign in, then Share → Add to Home Screen.
 
-**Double-clicking `docs/index.html`** opens the app in "This device only" mode for testing. Microsoft sign-in only works from a web address.
+**Without Microsoft sign-in** (for example while waiting for IT approval): on the sign-in screen choose **Use on this device only**. Double-clicking `docs/index.html` also opens this mode. Tasks then stay in that browser. When sign-in works, use Export backup, then **Switch to OneDrive** in the account menu, then Restore.
+
+## Today page
+
+- A one-line morning summary: overdue, due today, and follow-ups to make.
+- Count tiles (Overdue, Due today, High priority, With others). Tap a tile to show only those tasks; tap it again to show everything.
+- Quick add: type a task, pick Today / Tomorrow / Next week / No date and optionally High, then press Enter.
+- Open tasks are grouped as Overdue → Today → Next 7 days → Later or no date. Overdue rows have a red edge and High-priority rows a rose edge, and every row also says its priority in words.
+- The **⋯** menu on each row offers: start working, waiting on someone, move to tomorrow, move to next week, change priority.
+- "Done today" lists today's completed tasks so you can reopen one with a tap.
 
 ## Storage behavior
 

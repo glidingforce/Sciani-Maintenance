@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Handshake, ListTodo, Sun, User } from 'lucide-react';
 import type { Task } from './types';
 import { todayISO } from './lib/dates';
-import { complete, newTask, reopen } from './lib/tasks';
+import { applyQuick, complete, newTask, reopen, type QuickAction } from './lib/tasks';
 import { useWorkspace } from './state/useWorkspace';
 import { useOutlook } from './state/useOutlook';
 import { Today } from './components/Today';
@@ -76,6 +76,8 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [ws.save]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const quick = useCallback((t: Task, a: QuickAction) => void ws.saveTask(applyQuick(t, a, today)), [ws.saveTask, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggle = useCallback((t: Task) => void ws.saveTask(t.status === 'done' ? reopen(t) : complete(t)), [ws.saveTask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Saves edits; if the task's title changed and it has a linked event whose
@@ -142,6 +144,11 @@ export default function App() {
           {window.location.protocol === 'file:'
             ? 'Opened from a file: tasks are saved in this browser only. Microsoft sign-in works from the web address.'
             : 'Saved in this browser; not synced to your other devices.'}
+          {ws.cloudAvailable && (
+            <button type="button" className="linkish" onClick={() => ws.setLocalOnly(false)}>
+              Sign in to OneDrive
+            </button>
+          )}
           <button type="button" className="linkish" onClick={() => setShowData(true)}>
             Details &amp; backup
           </button>
@@ -151,7 +158,7 @@ export default function App() {
 
   let body: React.ReactNode;
   if (ws.load === 'needs-sign-in') {
-    body = <SignIn onSignIn={ws.signInCloud} onDemo={() => ws.setDemo(true)} error={ws.authError} />;
+    body = <SignIn onSignIn={ws.signInCloud} onLocal={() => ws.setLocalOnly(true)} onDemo={() => ws.setDemo(true)} error={ws.authError} />;
   } else if (ws.load === 'loading') {
     body = <p className="center-card subtle" role="status">Loading your tasks…</p>;
   } else if (ws.load === 'error') {
@@ -166,7 +173,7 @@ export default function App() {
       </div>
     );
   } else {
-    const common = { contacts: ws.data.contacts, today, onOpen: openTask, onToggle: toggle };
+    const common = { contacts: ws.data.contacts, today, onOpen: openTask, onToggle: toggle, onQuick: quick };
     body =
       page === 'today' ? (
         <Today
@@ -174,6 +181,7 @@ export default function App() {
           tasks={ws.data.tasks}
           firstName={who.first}
           onAdd={addTask}
+          onQuickAdd={ws.saveTask}
           onFollowUp={setFollowUpFor}
           onShowAll={() => go('tasks')}
           outlookSlot={ws.mode === 'demo' ? null : <OutlookPanel outlook={outlook} onSetupInfo={() => setShowOutlookSetup(true)} />}

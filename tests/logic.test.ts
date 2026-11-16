@@ -101,3 +101,37 @@ describe('Asia/Jerusalem dates and DST', () => {
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 });
+
+import { applyQuick, doneToday, groupForToday, morningSummary } from '../src/lib/tasks';
+
+describe('Today grouping and quick actions', () => {
+  it('groups open tasks into overdue / today / next 7 days / later', () => {
+    const tasks = [
+      newTask({ title: 'od', dueDate: '2026-11-10' }),
+      newTask({ title: 'td', dueDate: today }),
+      newTask({ title: 'soon', dueDate: '2026-11-20' }),
+      newTask({ title: 'far', dueDate: '2026-12-20' }),
+      newTask({ title: 'nodate' }),
+    ];
+    const g = groupForToday(tasks, today);
+    expect([g.overdue, g.today, g.soon, g.later].map((l) => l.map((t) => t.title))).toEqual([['od'], ['td'], ['soon'], ['far', 'nodate']]);
+  });
+
+  it('postpone moves the due date and clears overdue', () => {
+    const t = newTask({ dueDate: '2026-11-10' });
+    const moved = applyQuick(t, 'tomorrow', today);
+    expect(moved.dueDate).toBe('2026-11-17');
+    expect(groupForToday([moved], today).overdue).toHaveLength(0);
+    expect(applyQuick(t, 'start', today).status).toBe('in_progress');
+  });
+
+  it('done today uses the Israel date of completion', () => {
+    const t = { ...complete(newTask({ title: 'x' })), completedAt: '2026-11-15T23:30:00Z' }; // 01:30 on the 16th in Israel
+    expect(doneToday([t], today)).toHaveLength(1);
+  });
+
+  it('writes a plain morning summary', () => {
+    expect(morningSummary({ high: 1, dueToday: 3, overdue: 1, withOthers: 0 }, 2)).toBe('You have 1 overdue, 3 due today and 2 follow-ups to make.');
+    expect(morningSummary({ high: 0, dueToday: 0, overdue: 0, withOthers: 0 }, 0)).toMatch(/Nothing due today/);
+  });
+});

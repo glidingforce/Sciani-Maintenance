@@ -1,5 +1,5 @@
 import type { Contact, DateOnly, FollowUpEntry, Priority, Task } from '../types';
-import { addDays } from './dates';
+import { addDays, todayISO } from './dates';
 
 export const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -134,4 +134,66 @@ export function ownerLabel(t: Task, contacts: Contact[]): string {
   if (t.owner === 'me') return 'Me';
   const c = contacts.find((x) => x.id === t.contactId);
   return t.assignee || c?.company || c?.name || 'Someone else';
+}
+
+// ---------- Today view helpers ----------
+
+export interface TodayGroups {
+  overdue: Task[];
+  today: Task[];
+  soon: Task[]; // due in the next 7 days
+  later: Task[]; // due later, or no date
+}
+
+/** Splits open short-term work into the four groups shown on the Today page. */
+export function groupForToday(tasks: Task[], today: DateOnly, filter: OwnerFilter = 'all'): TodayGroups {
+  const week = addDays(today, 7);
+  const g: TodayGroups = { overdue: [], today: [], soon: [], later: [] };
+  for (const t of priorityList(tasks, today, filter)) {
+    if (isOverdue(t, today)) g.overdue.push(t);
+    else if (t.dueDate === today) g.today.push(t);
+    else if (t.dueDate && t.dueDate <= week) g.soon.push(t);
+    else g.later.push(t);
+  }
+  return g;
+}
+
+/** Tasks completed today (Israel date), newest first, so they can be reopened quickly. */
+export function doneToday(tasks: Task[], today: DateOnly): Task[] {
+  return tasks
+    .filter((t) => t.kind === 'task' && t.status === 'done' && !t.archived && t.completedAt && todayISO(new Date(t.completedAt)) === today)
+    .sort((a, b) => (b.completedAt! > a.completedAt! ? 1 : -1));
+}
+
+export type QuickAction = 'start' | 'waiting' | 'todo' | 'tomorrow' | 'nextweek' | 'high' | 'normal';
+
+export function applyQuick(t: Task, action: QuickAction, today: DateOnly): Task {
+  const base = { ...t, updatedAt: new Date().toISOString() };
+  switch (action) {
+    case 'start':
+      return { ...base, status: 'in_progress' };
+    case 'waiting':
+      return { ...base, status: 'waiting' };
+    case 'todo':
+      return { ...base, status: 'todo' };
+    case 'tomorrow':
+      return { ...base, dueDate: addDays(today, 1) };
+    case 'nextweek':
+      return { ...base, dueDate: addDays(today, 7) };
+    case 'high':
+      return { ...base, priority: 'High' };
+    case 'normal':
+      return { ...base, priority: 'Normal' };
+  }
+}
+
+/** One plain-language line for the morning. */
+export function morningSummary(c: DailyCounts, followUpsDue: number): string {
+  const parts: string[] = [];
+  if (c.overdue) parts.push(`${c.overdue} overdue`);
+  if (c.dueToday) parts.push(`${c.dueToday} due today`);
+  if (followUpsDue) parts.push(`${followUpsDue} follow-up${followUpsDue > 1 ? 's' : ''} to make`);
+  if (!parts.length) return 'Nothing due today. A good day for long-term work.';
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
+  return `You have ${list}.`;
 }

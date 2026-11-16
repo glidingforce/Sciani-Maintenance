@@ -49,6 +49,11 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
           {ws.mode === 'local' && (
             <p className="subtle">To use the same tasks on every device, open the app from its web address and sign in with Microsoft.</p>
           )}
+          {ws.mode === 'local' && ws.cloudAvailable && (
+            <button type="button" className="btn" style={{ marginTop: 8 }} onClick={() => ws.setLocalOnly(false)}>
+              Switch to OneDrive (sign in)
+            </button>
+          )}
         </div>
         <div className="wait-actions">
           <button type="button" className="btn" onClick={exportData}>

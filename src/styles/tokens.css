@@ -17,6 +17,10 @@
   --overdue: #a3243b;
   --overdue-bg: #fbecef;
   --ok: #2f6b4f;
+  --ok-bg: #e9f3ee;
+  --amber: #8a5a00; /* "Waiting" only */
+  --amber-bg: #fbf0d9;
+  --today-bg: #faf3f6;
 
   --font-head: 'Montserrat', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
   --font-body: 'Lato', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;

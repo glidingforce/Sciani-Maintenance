@@ -204,9 +204,13 @@ svg.icon {
   font-weight: 500;
 }
 .welcome {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--muted);
   margin-top: 12px;
+}
+.welcome .summary {
+  color: var(--ink);
+  font-weight: 700;
 }
 .page-title {
   font-family: var(--font-head);
@@ -283,27 +287,46 @@ svg.icon {
 
 /* ---------- Counts ---------- */
 .stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 34px;
-  padding: 16px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 26px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 30px;
 }
 .stat {
   display: flex;
-  gap: 9px;
+  gap: 10px;
   align-items: baseline;
+  text-align: left;
+  min-height: var(--touch);
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+}
+.stat:hover {
+  border-color: var(--line-strong);
+}
+.stat.today {
+  background: var(--today-bg);
+}
+.stat.overdue {
+  background: var(--overdue-bg);
+  border-color: #f0cbd2;
+}
+.stat.active {
+  border-color: var(--plum);
+  box-shadow: inset 0 0 0 1px var(--plum);
 }
 .stat b {
   font-family: var(--font-head);
-  font-size: 22px;
+  font-size: 26px;
+  line-height: 1.1;
   font-weight: 500;
   color: var(--plum);
 }
 .stat span {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 .stat.overdue b,
@@ -372,9 +395,18 @@ svg.icon {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 12px 0;
+  padding: 13px 4px 13px 12px;
   border-top: 1px solid var(--line);
   align-items: start;
+}
+.task.has-menu {
+  grid-template-columns: 30px minmax(0, 1fr) auto 36px;
+}
+.task.accent-overdue {
+  box-shadow: inset 3px 0 0 var(--overdue);
+}
+.task.accent-high {
+  box-shadow: inset 3px 0 0 var(--rose);
 }
 .check {
   width: var(--touch);
@@ -413,7 +445,7 @@ svg.icon {
   border: 0;
   background: none;
   padding: 2px 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.4;
   color: var(--ink);
@@ -427,7 +459,7 @@ svg.icon {
   color: var(--muted);
 }
 .detail {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   margin-top: 3px;
   display: flex;
@@ -453,7 +485,10 @@ svg.icon {
   padding-top: 2px;
 }
 .priority {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   font-size: 11px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -468,6 +503,169 @@ svg.icon {
   color: var(--muted);
   font-weight: 400;
 }
+.priority .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--plum);
+  display: inline-block;
+}
+.priority.High .dot {
+  background: var(--high);
+}
+.priority.Low .dot {
+  background: transparent;
+  border: 1.5px solid var(--muted);
+}
+.tag.status-in_progress {
+  color: var(--plum);
+  background: var(--pale);
+}
+.tag.status-waiting {
+  color: var(--amber);
+  background: var(--amber-bg);
+}
+.task-side {
+  font-size: 14px;
+}
+
+/* ---------- Groups on Today ---------- */
+.group {
+  margin-bottom: 18px;
+}
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 6px 0;
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+summary.group-head {
+  cursor: pointer;
+  min-height: 36px;
+}
+.group-count {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0;
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--pale);
+  color: var(--plum);
+  text-align: center;
+}
+.group.overdue .group-head {
+  color: var(--overdue);
+}
+.group.overdue .group-count {
+  background: var(--overdue-bg);
+  color: var(--overdue);
+}
+.group.today .group-head {
+  color: var(--plum);
+}
+.done-group .group-head {
+  color: var(--ok);
+}
+.done-group .group-count {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.all-clear {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--ok);
+}
+
+/* ---------- Quick add ---------- */
+.quick-add {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 18px;
+  padding: 10px;
+  background: var(--today-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.quick-add > .input {
+  flex: 1 1 260px;
+}
+.quick-controls {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.quick-controls select {
+  width: auto;
+}
+.chip-toggle {
+  min-height: var(--touch);
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 14px;
+}
+.chip-toggle.on {
+  background: var(--overdue-bg);
+  border-color: var(--high);
+  color: var(--high);
+  font-weight: 700;
+}
+
+/* ---------- Row quick menu ---------- */
+.row-menu {
+  position: relative;
+  margin-top: -6px;
+}
+.row-menu-btn {
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 15;
+  min-width: 220px;
+  background: var(--white);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgb(52 44 52 / 0.16);
+  padding: 6px;
+  display: grid;
+}
+.menu button {
+  text-align: left;
+  border: 0;
+  background: none;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--pale);
+  color: var(--plum);
+}
+.menu hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
 .due.overdue {
   color: var(--overdue);
   font-weight: 700;
@@ -475,8 +673,11 @@ svg.icon {
 
 /* ---------- Follow-ups ---------- */
 .wait {
-  padding: 14px 0;
+  padding: 14px 0 14px 12px;
   border-top: 1px solid var(--line);
+}
+.wait.due {
+  box-shadow: inset 3px 0 0 var(--rose);
 }
 .wait-title {
   display: block;
@@ -506,10 +707,10 @@ svg.icon {
 
 /* ---------- Long-term strip ---------- */
 .project {
-  padding: 14px 18px;
+  padding: 12px 14px;
   background: var(--pale);
-  border-radius: var(--radius);
-  margin-top: 28px;
+  border-radius: 6px;
+  margin-top: 8px;
   display: flex;
   gap: 15px;
   align-items: center;
@@ -894,19 +1095,26 @@ dialog.sheet::backdrop {
     font-size: 13px;
   }
   .stats {
-    gap: 12px;
-    justify-content: space-between;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
   .stat {
-    display: block;
+    padding: 10px 12px;
   }
   .stat b {
-    display: block;
     font-size: 22px;
-    line-height: 1.2;
   }
   .stat span {
-    font-size: 12px;
+    font-size: 13px;
+  }
+  .quick-controls {
+    flex: 1 1 100%;
+  }
+  .quick-controls select {
+    flex: 1;
+  }
+  .task {
+    padding-left: 10px;
   }
   .task-title {
     font-size: 15px;
@@ -975,12 +1183,18 @@ dialog.sheet::backdrop {
   }
 }
 
-@media (max-width: 360px) {
-  .task {
-    grid-template-columns: 30px minmax(0, 1fr);
+@media (max-width: 720px) {
+  .task,
+  .task.has-menu {
+    grid-template-columns: 30px minmax(0, 1fr) 44px;
+  }
+  .row-menu {
+    grid-column: 3;
+    grid-row: 1;
   }
   .task-side {
     grid-column: 2;
+    grid-row: 2;
     text-align: left;
     display: flex;
     gap: 8px;
@@ -988,10 +1202,15 @@ dialog.sheet::backdrop {
   }
   .priority {
     margin: 0;
+    justify-content: flex-start;
   }
 }
 
 @media (pointer: coarse) {
+  .row-menu-btn {
+    width: var(--touch);
+    height: var(--touch);
+  }
   .pill,
   .filters button,
   .segmented button,
