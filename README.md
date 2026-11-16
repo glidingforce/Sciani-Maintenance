@@ -20,17 +20,23 @@ On iPhone: open the address in Safari, sign in, then Share → Add to Home Scree
 
 ## Today page
 
+Four priority cards show all open work that is overdue, due today, due for follow-up, or waiting. Tap a card to focus the list; tap it again or choose Show all to clear that focus. Work due dates include project milestones; follow-up dates remain separate. Card totals always describe the whole workspace.
+
 **Desktop (wider than 1100 px):** the task list is on the left, and the right column shows:
-- an Overview card with counts: needs attention, overdue, follow-ups due, coming up, not scheduled, waiting, blocked, and closed in the last 7 days. Tap Waiting or Blocked to filter.
+- an At a glance card with counts for coming up, not scheduled, waiting, blocked, and closed in the last 7 days. Tap Waiting or Blocked to filter.
 - long-term work.
 - Done today.
 - Outlook.
 
 **Phones:** a single column, with the filters folded behind a "Filters" button.
 
-**Filters:** search (task, equipment, room, person, notes), responsible (you, others, or one person), area or room, priority, and status (including Blocked).
+**Filters:** Today and All Tasks share search (task, equipment, room, person, notes), responsible (you, others, or one person), area or room, priority, and status (including Blocked). Choose Filters to expand the selectors. Sort by urgency, work due date, priority, or oldest first; Today keeps its urgency groups and sorts within each group. Quick add expands on demand, with optional date, owner, and priority controls.
 
-**Rows:** each row's right-hand column shows the responsible person, the equipment (name · number · room), the area, and when the task was opened with how many days it has been open. After 14 days that line turns red.
+**Rows:** each row's right-hand column shows the responsible person, the equipment (name · number · room), and the area. Task age appears in the list after 14 days and is highlighted; the editor and reports keep the full creation-date details. Next actions appear in both Today and All Tasks.
+
+**Task editor:** fields are grouped into Task details, Equipment & location, Schedule & priority, and Responsibility & follow-up. Blockers, management actions, and notes expand separately. The form scrolls while its header and action buttons stay visible.
+
+**Contacts:** search by name, company, type, phone, or email. Each card shows linked open-task counts and the earliest recorded follow-up date, with overdue follow-ups highlighted.
 
 Your own tasks show your name ("Ilan") instead of "Me". You can change the name under account menu → Data & backups. It is stored on the device only; task records still say `owner: "me"`, so changing the name never changes task data.
 

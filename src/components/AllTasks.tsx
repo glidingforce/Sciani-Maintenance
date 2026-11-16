@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
-import { FileText, Plus, Search } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import type { Contact, Task } from '../types';
-import { compareDaily, isOpen, matchesOwner, searchTasks, type OwnerFilter, type QuickAction } from '../lib/tasks';
+import { isOpen, type QuickAction } from '../lib/tasks';
 import { TaskRow } from './TaskRow';
-import { getMyName } from '../lib/settings';
+import { NO_FILTER, applyView, type ViewFilter } from '../lib/filters';
+import { sortTasks, type TaskSort as Sort } from '../lib/taskView';
+import { FilterBar } from './Today';
+import { TaskSort } from './TaskSort';
 
 type View = 'open' | 'waiting' | 'longterm' | 'done' | 'archived';
 
@@ -26,8 +29,8 @@ export function AllTasks(props: {
   onQuick: (t: Task, a: QuickAction) => void;
 }) {
   const [view, setView] = useState<View>('open');
-  const [owner, setOwner] = useState<OwnerFilter>('all');
-  const [query, setQuery] = useState('');
+  const [f, setF] = useState<ViewFilter>(NO_FILTER);
+  const [sort, setSort] = useState<Sort>('urgent');
 
   const rows = useMemo(() => {
     const byView = props.tasks.filter((t) => {
@@ -38,31 +41,25 @@ export function AllTasks(props: {
       if (view === 'longterm') return isOpen(t) && t.kind === 'project';
       return isOpen(t);
     });
-    const list = searchTasks(byView, query, props.contacts).filter((t) => matchesOwner(t, owner));
-    if (view === 'done' || view === 'archived') return list.sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
-    return list.sort(compareDaily(props.today));
-  }, [props.tasks, props.contacts, props.today, view, owner, query]);
+    const list = applyView(byView, props.contacts, f);
+    if ((view === 'done' || view === 'archived') && sort === 'urgent') return list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return sortTasks(list, sort, props.today);
+  }, [props.tasks, props.contacts, props.today, view, f, sort]);
 
   return (
     <>
       <div className="intro" style={{ marginBottom: 8 }}>
-        <h1 className="page-title">All Tasks</h1>
+        <div><p className="eyebrow">Your maintenance workspace</p><h1 className="page-title">All Tasks</h1><p className="subtle">Track work across every area and owner.</p></div>
         <div className="day-actions">
           <button type="button" className="btn" onClick={props.onReport}>
             <FileText className="icon" /> <span className="hide-sm">Export </span>report
           </button>
           <button type="button" className="btn btn-primary" onClick={props.onAdd}>
-            <Plus className="icon" /> Task
+            <Plus className="icon" /> Add task
           </button>
         </div>
       </div>
-      <div className="toolbar">
-        <label className="search">
-          <Search className="icon" />
-          <span className="sr-only">Search tasks</span>
-          <input className="input" type="search" placeholder="Search task, equipment, room, person, notes" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </label>
-      </div>
+      <FilterBar f={f} set={setF} tasks={props.tasks} contacts={props.contacts} />
       <div className="section-head">
         <div className="filters" role="group" aria-label="Status">
           {VIEWS.map(([v, l]) => (
@@ -71,21 +68,10 @@ export function AllTasks(props: {
             </button>
           ))}
         </div>
-        <div className="filters" role="group" aria-label="Who is doing it">
-          {(
-            [
-              ['all', 'All'],
-              ['mine', getMyName()],
-              ['others', 'Others'],
-            ] as const
-          ).map(([v, l]) => (
-            <button key={v} type="button" aria-pressed={owner === v} onClick={() => setOwner(v)}>
-              {l}
-            </button>
-          ))}
-        </div>
+        <TaskSort value={sort} onChange={setSort} />
       </div>
-      {rows.length === 0 && <p className="empty">{query ? 'No matching tasks.' : 'Nothing here.'}</p>}
+      <p className="result-count">{rows.length} task{rows.length === 1 ? '' : 's'}</p>
+      {rows.length === 0 && <p className="empty">No tasks match this view. Try another status or clear your filters.</p>}
       {rows.map((t) => (
         <TaskRow key={t.id} task={t} contacts={props.contacts} today={props.today} onOpen={props.onOpen} onToggle={props.onToggle} onQuick={props.onQuick} />
       ))}

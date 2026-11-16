@@ -26,7 +26,7 @@ export function TaskEditor(props: {
   const [newContactDraft, setNewContactDraft] = useState<{ name: string; company: string; type: ContactType; phone: string; email: string } | null>(null);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const opt = (v: string) => (v.trim() ? v : undefined);
-  const hasDetails = !!(t.area || t.requester || t.notes || t.blocker || t.managementAction || (t.owner === 'me' && (t.contactId || t.nextFollowUp)));
+  const hasDetails = !!(t.notes || t.blocker || t.managementAction);
 
   async function commit(next: Task, close = true) {
     if (!next.title.trim()) return setError('Give the task a title.');
@@ -156,6 +156,7 @@ export function TaskEditor(props: {
           void commit(t);
         }}
       >
+        <fieldset className="editor-section"><legend>Task details</legend>
         <Segmented<Kind>
           label="Type"
           value={t.kind}
@@ -184,6 +185,8 @@ export function TaskEditor(props: {
             onChange={(e) => set('nextAction', opt(e.target.value))}
           />
         </label>
+        </fieldset>
+        <fieldset className="editor-section"><legend>Equipment & location</legend>
         <div className="grid3">
           <label className="field">
             <span>Equipment name</span>
@@ -198,6 +201,9 @@ export function TaskEditor(props: {
             <input value={t.room ?? ''} placeholder="e.g. 104" maxLength={60} onChange={(e) => set('room', opt(e.target.value))} />
           </label>
         </div>
+        <label className="field"><span>Area</span><input value={t.area ?? ''} placeholder="e.g. Production · HVAC" onChange={(e) => set('area', opt(e.target.value))} /></label>
+        </fieldset>
+        <fieldset className="editor-section"><legend>Schedule & priority</legend>
         <Segmented<Priority>
           label="Priority"
           value={t.priority}
@@ -227,6 +233,8 @@ export function TaskEditor(props: {
             </select>
           </label>
         </div>
+        </fieldset>
+        <fieldset className="editor-section"><legend>Responsibility & follow-up</legend>
         <Segmented<Owner>
           label="Responsible"
           value={t.owner}
@@ -270,19 +278,6 @@ export function TaskEditor(props: {
             </label>
           </div>
         )}
-        <details className="more-fields" open={!props.isNew && hasDetails}>
-          <summary>More details</summary>
-          <div className="more-grid">
-            <div className="grid2">
-              <label className="field">
-                <span>Area</span>
-                <input value={t.area ?? ''} placeholder="e.g. Production · HVAC" onChange={(e) => set('area', opt(e.target.value))} />
-              </label>
-              <label className="field">
-                <span>Requested by</span>
-                <input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} />
-              </label>
-            </div>
             {t.owner === 'me' && (
               <>
                 {contactSelect}
@@ -295,6 +290,11 @@ export function TaskEditor(props: {
                 )}
               </>
             )}
+        <label className="field"><span>Requested by</span><input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} /></label>
+        </fieldset>
+        <details className="more-fields" open={!props.isNew && hasDetails}>
+          <summary>Blockers, management & notes</summary>
+          <div className="more-grid">
             <label className="field">
               <span>Blocker (marks the task as Blocked)</span>
               <input value={t.blocker ?? ''} placeholder="e.g. No purchase order yet" onChange={(e) => set('blocker', opt(e.target.value))} />

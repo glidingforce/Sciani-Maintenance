@@ -3,10 +3,12 @@ import { CheckCircle2, FileText, Plus, Search, X } from 'lucide-react';
 import type { Contact, Priority, Task } from '../types';
 import { STATUS_LABEL } from '../types';
 import { addDays, longDate, shortDate } from '../lib/dates';
-import { closedWithin, dailyList, doneToday, isOverdue, newTask, type DailyGroup, type DailyItem, type QuickAction } from '../lib/tasks';
+import { closedWithin, dailyList, doneToday, newTask, type DailyGroup, type DailyItem, type QuickAction } from '../lib/tasks';
 import { NO_FILTER, applyView, describeView, filterOptions, isFiltered, type ViewFilter } from '../lib/filters';
 import { getMyName } from '../lib/settings';
 import { DailyRow, TaskRow } from './TaskRow';
+import { matchesFocus, sortTasks, type Focus, type TaskSort as Sort } from '../lib/taskView';
+import { TaskSort } from './TaskSort';
 
 function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise<boolean> }) {
   const [title, setTitle] = useState('');
@@ -39,7 +41,8 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
         New task title
       </label>
       <input id="quick-title" className="input" placeholder="New task: type and press Enter" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
-      <div className="quick-controls">
+      <button type="submit" className="btn btn-primary" disabled={busy || !title.trim()}>{busy ? 'Adding…' : 'Add'}</button>
+      <details className="quick-options"><summary>Set date, owner or priority</summary><div className="quick-controls">
         <select className="input" aria-label="Work due" value={when} onChange={(e) => setWhen(e.target.value as typeof when)}>
           <option value="none">No due date</option>
           <option value="today">Due today</option>
@@ -52,15 +55,12 @@ function QuickAdd({ today, onAdd }: { today: string; onAdd: (t: Task) => Promise
         <button type="button" className={`chip-toggle${priority === 'High' ? ' on' : ''}`} aria-pressed={priority === 'High'} onClick={() => setPriority((p) => (p === 'High' ? 'Normal' : 'High'))}>
           High
         </button>
-        <button type="submit" className="btn btn-primary" disabled={busy || !title.trim()}>
-          Add
-        </button>
-      </div>
+      </div></details>
     </form>
   );
 }
 
-function FilterBar(props: { f: ViewFilter; set: (f: ViewFilter) => void; tasks: Task[]; contacts: Contact[] }) {
+export function FilterBar(props: { f: ViewFilter; set: (f: ViewFilter) => void; tasks: Task[]; contacts: Contact[] }) {
   const { f, set } = props;
   const opts = filterOptions(props.tasks, props.contacts);
   const me = getMyName();
@@ -139,8 +139,10 @@ export function Today(props: {
 }) {
   const { contacts, today } = props;
   const [f, setF] = useState<ViewFilter>(NO_FILTER);
-  const filtered = isFiltered(f);
-  const tasks = applyView(props.tasks, contacts, f);
+  const [focus, setFocus] = useState<Focus>('');
+  const [sort, setSort] = useState<Sort>('urgent');
+  const filtered = isFiltered(f) || !!focus;
+  const tasks = applyView(props.tasks, contacts, f).filter((t) => matchesFocus(t, focus, today));
   const list = dailyList(tasks, today);
   const done = doneToday(tasks, today);
   const closedWeek = closedWithin(tasks, today, 7);
@@ -168,12 +170,20 @@ export function Today(props: {
           n('unscheduled') ? ` ${n('unscheduled')} task${n('unscheduled') > 1 ? 's have' : ' has'} no date yet.` : ''
         }`;
 
-  const renderItems = (items: DailyItem[]) => items.map((i) => <DailyRow key={i.task.id} item={i} {...rowProps} />);
+  const renderItems = (items: DailyItem[]) => {
+    if (sort === 'urgent') return items.map((i) => <DailyRow key={i.task.id} item={i} {...rowProps} />);
+    const byId = new Map(items.map((i) => [i.task.id, i]));
+    return sortTasks(items.map((i) => i.task), sort, today).map((t) => <DailyRow key={t.id} item={byId.get(t.id)!} {...rowProps} />);
+  };
+  const allOpen = props.tasks.filter((t) => !t.archived && t.status !== 'done');
+  const focusCards: { key: Exclude<Focus, ''>; label: string; hint: string; tone: string }[] = [
+    { key: 'overdue', label: 'Overdue', hint: 'Past the work due date', tone: 'urgent' },
+    { key: 'today', label: 'Due today', hint: 'Work planned for today', tone: 'plum' },
+    { key: 'followup', label: 'Follow-ups due', hint: 'Time to check in', tone: 'amber' },
+    { key: 'waiting', label: 'Waiting', hint: 'With someone else', tone: 'amber' },
+  ];
 
   const overview: [string, number, (() => void) | undefined, string?][] = [
-    ['Needs attention', n('attention'), undefined, 'strong'],
-    ['Overdue', open.filter((t) => isOverdue(t, today) || (t.kind === 'project' && !!t.milestoneDate && t.milestoneDate < today)).length, undefined, 'warn'],
-    ['Follow-ups due', open.filter((t) => t.nextFollowUp && t.nextFollowUp <= today).length, undefined],
     ['Coming up (7 days)', n('coming'), undefined],
     ['Not scheduled', n('unscheduled'), undefined],
     ['Waiting', open.filter((t) => t.status === 'waiting').length, () => setF({ ...f, status: f.status === 'waiting' ? '' : 'waiting' })],
@@ -185,10 +195,12 @@ export function Today(props: {
     <>
       <div className="day-head">
         <div>
-          <h1 className="day-title">{longDate(today)}</h1>
+          <p className="eyebrow">Your maintenance workspace</p>
+          <h1 className="day-title">Today</h1>
+          <p className="day-date">{longDate(today)}</p>
           <p className="day-summary" data-testid="day-summary">
             {summary}
-            {filtered && <span className="filtered-note"> · filtered: {describeView(f)}</span>}
+            {filtered && <span className="filtered-note"> · filtered: {[describeView(f), focusCards.find((c) => c.key === focus)?.label].filter(Boolean).join(', ')}</span>}
             {props.storageNote}
           </p>
         </div>
@@ -197,15 +209,21 @@ export function Today(props: {
             <FileText className="icon" /> Export report
           </button>
           <button type="button" className="btn btn-primary" onClick={props.onAdd}>
-            <Plus className="icon" /> Task
+            <Plus className="icon" /> Add task
           </button>
         </div>
       </div>
 
+      <div className="focus-cards" aria-label="Task priorities">
+        {focusCards.map((c) => <button key={c.key} type="button" className={`focus-card ${c.tone}`} aria-pressed={focus === c.key} onClick={() => { setF(NO_FILTER); setFocus(focus === c.key ? '' : c.key); }}>
+          <span>{c.label}</span><strong>{allOpen.filter((t) => matchesFocus(t, c.key, today)).length}</strong><small>{c.hint}</small>
+        </button>)}
+      </div>
       <div className="today-grid">
         <div className="today-main">
-          <QuickAdd today={today} onAdd={props.onQuickAdd} />
+          <details className="quick-entry"><summary><Plus className="icon" aria-hidden="true" /> Quick add a task</summary><QuickAdd today={today} onAdd={props.onQuickAdd} /></details>
           <FilterBar f={f} set={setF} tasks={props.tasks} contacts={contacts} />
+          <div className="list-tools"><span>{openTotal} open task{openTotal === 1 ? '' : 's'}{focus && <> · {focusCards.find((c) => c.key === focus)?.label} <button type="button" className="linkish" onClick={() => setFocus('')}>Show all</button></>}</span><TaskSort value={sort} onChange={setSort} /></div>
 
           {MAIN_GROUPS.map((g) => {
             const items = list[g.key];
@@ -244,7 +262,7 @@ export function Today(props: {
 
         <aside className="today-side" aria-label="Overview and long-term work">
           <section className="side-card overview" aria-label="Overview">
-            <h2 className="side-title">Overview{filtered ? ' (filtered)' : ''}</h2>
+            <h2 className="side-title">At a glance{filtered ? ' · filtered' : ''}</h2>
             <dl>
               {overview.map(([label, value, onClick, tone]) => (
                 <div key={label} className={`ov-row ${tone ?? ''}${value === 0 ? ' zero' : ''}`}>
