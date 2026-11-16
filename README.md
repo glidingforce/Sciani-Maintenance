@@ -8,15 +8,22 @@ A personal maintenance workspace for daily focus, follow-ups with contractors an
 
 No task data lives in this repository. Backups that you export are git-ignored.
 
-## Run locally
+## Try it on your PC (no install)
+
+Double-click `docs/index.html`. That folder is the finished app: one self-contained page plus the logo and icons.
+Records you create while testing this way are saved in that browser for that file only.
+
+## Rebuild after code changes (needs Node.js)
 
 ```bash
 npm install
-cp .env.example .env.local   # optional: fill in Supabase / Microsoft values
-npm run dev                  # http://localhost:5173
-npm test                     # unit tests
-npm run build                # production build in dist/
+npm run dev      # live development at http://localhost:5173
+npm test         # unit tests
+npm run build    # writes the finished app to docs/
 ```
+
+To turn on Supabase or Outlook, copy `env.example.txt` to a file named `.env.local`, fill in the values, and run `npm run build` again.
+The values are compiled into `docs/index.html`; they are public by design (see below).
 
 ## Storage modes
 
@@ -44,7 +51,7 @@ The anon key is meant to be public. Your data is protected by row-level security
 
 1. Go to Entra admin center → **App registrations → New registration**.
    - Name: `Scinai Maintenance`. Supported accounts: *this organizational directory only*.
-   - Redirect URI: platform **Single-page application (SPA)**, value `https://<user>.github.io/<repo>/` (with the trailing slash). Also add `http://localhost:5173/` for local development.
+   - Redirect URI: platform **Single-page application (SPA)**, value `https://<user>.github.io/<repo>/` (with the trailing slash). Also add `http://localhost:5173/` for local development. Outlook sign-in does not work from a double-clicked file.
 2. **API permissions → Add → Microsoft Graph → Delegated → `Calendars.ReadWrite`**. `User.Read` is already present. If your organization blocks user consent, ask IT to **Grant admin consent**.
 3. Do **not** create a client secret. The app is a public client and uses the browser PKCE flow.
 4. Copy **Application (client) ID** and **Directory (tenant) ID**.
@@ -59,16 +66,16 @@ How the integration behaves:
 - Times are entered and shown in Israel time (`Asia/Jerusalem`, Graph zone `Israel Standard Time`). Graph converts them to and from Israel time, including daylight saving changes. The browser's own time zone is never used for date arithmetic.
 - If company policy blocks the app, leave the Microsoft values empty. The dashboard works fully without a calendar.
 
-## Deploy to GitHub Pages
+## Publish on GitHub Pages (no workflow, no hidden folders)
 
-1. Create a **private or public** repo and push this folder. The code contains no secrets and no task data.
-2. Go to **Settings → Pages → Source: GitHub Actions**.
-3. Go to **Settings → Secrets and variables → Actions → Variables** and add the variables you have:
-   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MS_CLIENT_ID`, `VITE_MS_TENANT_ID`.
-4. Push to `main`. The workflow runs the tests, builds with `BASE_PATH=/<repo>/`, and publishes.
-5. On iPhone, open the URL in Safari, then tap **Share → Add to Home Screen**.
+1. Upload the project to the repository, including the `docs` folder. Drag-and-drop in the browser is fine.
+2. **Settings → Pages → Build and deployment → Source: Deploy from a branch**, Branch **main**, folder **/docs**, Save.
+3. After about a minute the app is at `https://<user>.github.io/<repo>/`. Paths are relative, so any repository name works.
+4. Every time `docs/` changes (after `npm run build`), upload the new `docs/index.html` again.
+5. On iPhone: open the URL in Safari → Share → Add to Home Screen.
 
-Note: GitHub Pages sites are public even when the repository is private (unless you use Enterprise access control). That is fine here: the page holds no data, and records are only readable after sign-in.
+GitHub Pages sites are public even from a private repository. That is acceptable here because the page contains no task data;
+records are only readable after signing in to shared storage. Never upload a backup export to the repository.
 
 ## Project layout
 

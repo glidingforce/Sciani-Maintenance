@@ -12,5 +12,5 @@ export const config = {
 export const supabaseConfigured = !!(config.supabaseUrl && config.supabaseAnonKey);
 export const outlookConfigured = !!config.msClientId;
 
-/** Absolute URL of the deployed app root (works under a GitHub Pages subpath). */
-export const appUrl = () => new URL(import.meta.env.BASE_URL, window.location.origin).href;
+/** Absolute URL of the folder the app is served from (works under any GitHub Pages subpath). */
+export const appUrl = () => new URL('./', window.location.href.split('#')[0].split('?')[0]).href;

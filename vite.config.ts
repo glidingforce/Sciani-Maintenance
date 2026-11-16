@@ -1,16 +1,19 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 
-// GitHub Pages serves the app from /<repository-name>/.
-// The deploy workflow sets BASE_PATH; locally it defaults to "/".
+// The build is ONE self-contained docs/index.html (code, styles and fonts inlined)
+// plus the logo/icons next to it. Relative paths ('./') mean the same files work:
+//  - double-clicked from your PC (file://), and
+//  - on GitHub Pages "Deploy from a branch" → main → /docs, at any repository name.
 export default defineConfig({
-  base: process.env.BASE_PATH ?? '/',
-  plugins: [react()],
+  base: './',
+  plugins: [react(), viteSingleFile()],
   build: {
-    rollupOptions: {
-      output: { manualChunks: { msal: ['@azure/msal-browser'], supabase: ['@supabase/supabase-js'] } },
-    },
+    outDir: 'docs',
+    emptyOutDir: true,
+    assetsInlineLimit: 100_000_000,
   },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
 });
