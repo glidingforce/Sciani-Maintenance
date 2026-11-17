@@ -52,6 +52,12 @@ Each row shows why it is there ("Overdue · 12 Nov", "Due today", "Follow-up due
 
 Due date, follow-up date, responsible party and next action are separate fields. "Waiting" (on someone) and "Blocked" (a blocker is recorded) are tracked separately.
 
+## Completing tasks and malfunctions
+
+Complete, a task checkbox, Mark done, or saving a new Done status opens a completion window. Enter a short description of what was done and the outcome. Solved is checked by default; uncheck it to close the task as Not solved. Cancel leaves the task open and preserves editor changes. The task is closed only after saving succeeds.
+
+Completion details are saved with the task, shown when opening a closed task, and included with its outcome in the report's existing Closed in the last 7 days section. Older completed records show Not recorded rather than an assumed outcome. Reopening keeps the recorded details; completing it again asks for a fresh description and outcome.
+
 ## Management report (PDF)
 
 Export report → choose filters (all optional) → Create PDF. By default it includes every unfinished task, including waiting and unscheduled ones.
