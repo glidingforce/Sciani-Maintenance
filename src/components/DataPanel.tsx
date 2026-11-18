@@ -5,7 +5,6 @@ import { convertToCurrent, makeBackup, planRestore, type ConvertResult, type Res
 import { backupFileName, downloadJson } from '../lib/download';
 import { SAFETY_KEYS } from '../storage/repo';
 import { Sheet } from './Sheet';
-import { getMyName, setMyName } from '../lib/settings';
 
 const MODE_TEXT = {
   cloud: 'Your OneDrive (Apps / Scinai Maintenance). The same records on every device where you sign in with your Scinai account.',
@@ -36,7 +35,6 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
   const [pending, setPending] = useState<Pending | null>(null);
   const [restoreMode, setRestoreMode] = useState<RestoreMode>('merge');
   const [busy, setBusy] = useState(false);
-  const [name, setName] = useState(getMyName());
 
   async function readFile(file: File) {
     setMsg('');
@@ -74,11 +72,7 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
     followUps: d.tasks.reduce((n, t) => n + (t.followUps?.length ?? 0), 0),
   };
 
-  const preUpgrade =
-    safetyCopy(`${SAFETY_KEYS.preUpgradeLocal}:v2`) ??
-    safetyCopy(`${SAFETY_KEYS.preUpgradeCloud}:v2`) ??
-    safetyCopy(SAFETY_KEYS.preUpgradeLocal) ??
-    safetyCopy(SAFETY_KEYS.preUpgradeCloud);
+  const preUpgrade = safetyCopy(SAFETY_KEYS.preUpgradeLocal) ?? safetyCopy(SAFETY_KEYS.preUpgradeCloud);
   const preRestore = safetyCopy(SAFETY_KEYS.preRestore);
 
   return (
@@ -95,23 +89,6 @@ export function DataPanel({ ws, onClose }: { ws: Workspace; onClose: () => void 
           )}
         </div>
 
-        <label className="field">
-          <span>Your name (shown instead of “Me”)</span>
-          <div className="wait-actions">
-            <input className="input" style={{ flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} />
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setMyName(name);
-                window.location.reload();
-              }}
-            >
-              Save name
-            </button>
-          </div>
-        </label>
-        <hr className="divider" />
         <div className="wait-actions">
           <button type="button" className="btn" onClick={() => downloadJson(makeBackup(ws.data, ws.mode), backupFileName(ws.mode))}>
             <Download className="icon" /> Export backup

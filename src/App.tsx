@@ -126,7 +126,7 @@ export default function App() {
         </nav>
         <div className="top-right">
           <span className={`mode-badge${ws.mode === 'demo' ? ' demo' : ''}`} data-testid="sync-status">
-            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : !ws.account || ws.load === 'needs-sign-in' ? 'Not connected' : ws.save.kind === 'error' ? 'Changes not saved' : ws.load === 'error' ? 'Connection error' : ws.load === 'loading' ? 'Connecting…' : ws.save.kind === 'saving' ? 'Saving…' : 'OneDrive · saved'}
+            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : ws.save.kind === 'saving' ? 'Saving…' : 'OneDrive · saved'}
           </span>
           <button type="button" className="person" aria-label="Data and accounts" onClick={() => setShowData(true)}>
             <span>{who.initials || <User className="icon" />}</span>
@@ -142,7 +142,7 @@ export default function App() {
     ws.mode === 'demo' ? (
       <div className="notice-wrap">
         <div className="notice" role="note">
-          <b>Demo data.</b> Sample records only.
+          <b>Demo data.</b> Sample records, kept separate from your real tasks.
           <button type="button" className="linkish" onClick={() => ws.setDemo(false)}>
             Exit demo
           </button>

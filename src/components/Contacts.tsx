@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Pencil, Plus, Search } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import type { Contact, ContactType, Task } from '../types';
 import { CONTACT_TYPES } from '../types';
 import { isOpen, newContact } from '../lib/tasks';
 import { ContactLinks } from './FollowUpDialog';
 import { Sheet } from './Sheet';
-import { shortDate, todayISO } from '../lib/dates';
 
 export function Contacts(props: {
   contacts: Contact[];
@@ -15,29 +14,26 @@ export function Contacts(props: {
   onOpenTask: (t: Task) => void;
 }) {
   const [editing, setEditing] = useState<{ c: Contact; isNew: boolean } | null>(null);
-  const [query, setQuery] = useState('');
-  const sorted = props.contacts.filter((c) => [c.name, c.company, c.email, c.phone, c.type].filter(Boolean).join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => (a.company || a.name).localeCompare(b.company || b.name));
+  const sorted = [...props.contacts].sort((a, b) => (a.company || a.name).localeCompare(b.company || b.name));
 
   return (
     <>
       <div className="intro" style={{ marginBottom: 8 }}>
-        <div><p className="eyebrow">Your maintenance network</p><h1 className="page-title">Contacts</h1></div>
+        <h1 className="page-title">Contacts</h1>
         <button type="button" className="btn btn-primary" onClick={() => setEditing({ c: newContact(), isNew: true })}>
-          <Plus className="icon" /> Add contact
+          <Plus className="icon" /> Contact
         </button>
       </div>
-      <p className="subtle" style={{ marginBottom: 16 }}>Your contractors, vendors, and the work you share.</p>
-      <label className="filter-search contact-search"><Search className="icon" aria-hidden="true" /><span className="sr-only">Search contacts</span><input className="input" type="search" placeholder="Search name, company, phone or email…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-      {sorted.length === 0 && <p className="empty">{query ? 'No contacts match your search.' : 'No contacts yet. Add a contractor or vendor to get started.'}</p>}
-      <div className="contact-grid">
+      <p className="subtle" style={{ marginBottom: 16 }}>
+        Call and Email open your phone or mail app with the details filled in. Nothing is sent automatically.
+      </p>
+      {sorted.length === 0 && <p className="empty">No contacts yet.</p>}
       {sorted.map((c) => {
         const open = props.tasks.filter((t) => t.contactId === c.id && isOpen(t));
-        const next = open.map((t) => t.nextFollowUp).filter((d): d is string => !!d).sort()[0];
         return (
           <div className="contact" key={c.id}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{c.company || c.name}</div>
-              <p className="contact-work">{open.length} open task{open.length === 1 ? '' : 's'}{next && <span className={next < todayISO() ? 'overdue' : ''}> · Follow-up {shortDate(next, todayISO())}</span>}</p>
               <div className="detail">
                 <span>{c.company ? c.name : ''}</span>
                 <span className="tag">{c.type}</span>
@@ -63,7 +59,6 @@ export function Contacts(props: {
           </div>
         );
       })}
-      </div>
       {editing && (
         <ContactEditor
           contact={editing.c}

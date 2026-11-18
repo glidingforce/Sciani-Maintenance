@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import type { Contact, ContactType, Kind, Owner, Priority, Status, Task } from '../types';
 import { CONTACT_TYPES, PRIORITIES, STATUSES, STATUS_LABEL } from '../types';
-import { complete, createdDate, daysLabel, daysOpen, newContact, reopen, setArchived } from '../lib/tasks';
-import { getMyName } from '../lib/settings';
-import { shortDate, todayISO } from '../lib/dates';
+import { complete, newContact, reopen, setArchived } from '../lib/tasks';
 import { Segmented, Sheet } from './Sheet';
 
 export interface EditorActions {
@@ -26,7 +24,7 @@ export function TaskEditor(props: {
   const [newContactDraft, setNewContactDraft] = useState<{ name: string; company: string; type: ContactType; phone: string; email: string } | null>(null);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const opt = (v: string) => (v.trim() ? v : undefined);
-  const hasDetails = !!(t.notes || t.blocker || t.managementAction);
+  const hasDetails = !!(t.area || t.requester || t.notes || t.blocker || t.managementAction || (t.owner === 'me' && (t.contactId || t.nextFollowUp)));
 
   async function commit(next: Task, close = true) {
     if (!next.title.trim()) return setError('Give the task a title.');
@@ -156,7 +154,6 @@ export function TaskEditor(props: {
           void commit(t);
         }}
       >
-        <fieldset className="editor-section"><legend>Task details</legend>
         <Segmented<Kind>
           label="Type"
           value={t.kind}
@@ -185,25 +182,6 @@ export function TaskEditor(props: {
             onChange={(e) => set('nextAction', opt(e.target.value))}
           />
         </label>
-        </fieldset>
-        <fieldset className="editor-section"><legend>Equipment & location</legend>
-        <div className="grid3">
-          <label className="field">
-            <span>Equipment name</span>
-            <input value={t.equipmentName ?? ''} placeholder="e.g. Huber chiller" maxLength={120} onChange={(e) => set('equipmentName', opt(e.target.value))} />
-          </label>
-          <label className="field">
-            <span>Equipment no.</span>
-            <input value={t.equipmentNumber ?? ''} placeholder="e.g. CH-02" maxLength={60} onChange={(e) => set('equipmentNumber', opt(e.target.value))} />
-          </label>
-          <label className="field">
-            <span>Room</span>
-            <input value={t.room ?? ''} placeholder="e.g. 104" maxLength={60} onChange={(e) => set('room', opt(e.target.value))} />
-          </label>
-        </div>
-        <label className="field"><span>Area</span><input value={t.area ?? ''} placeholder="e.g. Production · HVAC" onChange={(e) => set('area', opt(e.target.value))} /></label>
-        </fieldset>
-        <fieldset className="editor-section"><legend>Schedule & priority</legend>
         <Segmented<Priority>
           label="Priority"
           value={t.priority}
@@ -233,13 +211,11 @@ export function TaskEditor(props: {
             </select>
           </label>
         </div>
-        </fieldset>
-        <fieldset className="editor-section"><legend>Responsibility & follow-up</legend>
         <Segmented<Owner>
           label="Responsible"
           value={t.owner}
           options={[
-            { value: 'me', label: getMyName() },
+            { value: 'me', label: 'Me' },
             { value: 'other', label: 'Someone else' },
           ]}
           onChange={(v) => set('owner', v)}
@@ -278,6 +254,19 @@ export function TaskEditor(props: {
             </label>
           </div>
         )}
+        <details className="more-fields" open={!props.isNew && hasDetails}>
+          <summary>More details</summary>
+          <div className="more-grid">
+            <div className="grid2">
+              <label className="field">
+                <span>Area / equipment</span>
+                <input value={t.area ?? ''} placeholder="e.g. Production · AHU-02" onChange={(e) => set('area', opt(e.target.value))} />
+              </label>
+              <label className="field">
+                <span>Requested by</span>
+                <input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} />
+              </label>
+            </div>
             {t.owner === 'me' && (
               <>
                 {contactSelect}
@@ -290,11 +279,6 @@ export function TaskEditor(props: {
                 )}
               </>
             )}
-        <label className="field"><span>Requested by</span><input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} /></label>
-        </fieldset>
-        <details className="more-fields" open={!props.isNew && hasDetails}>
-          <summary>Blockers, management & notes</summary>
-          <div className="more-grid">
             <label className="field">
               <span>Blocker (marks the task as Blocked)</span>
               <input value={t.blocker ?? ''} placeholder="e.g. No purchase order yet" onChange={(e) => set('blocker', opt(e.target.value))} />
@@ -313,12 +297,6 @@ export function TaskEditor(props: {
             </label>
           </div>
         </details>
-        {!props.isNew && (
-          <p className="subtle" data-testid="task-age">
-            Created {shortDate(createdDate(t), '')} · {daysLabel(daysOpen(t, todayISO()))}
-            {t.status === 'done' && t.completedAt ? ` · closed ${shortDate(todayISO(new Date(t.completedAt)), '')}` : ''}
-          </p>
-        )}
         {t.outlook && (
           <div className={`linked${t.outlook.state === 'removed' ? ' removed' : ''}`}>
             {t.outlook.state === 'scheduled' && t.outlook.start

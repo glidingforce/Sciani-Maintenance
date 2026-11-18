@@ -20,26 +20,6 @@ On iPhone: open the address in Safari, sign in, then Share → Add to Home Scree
 
 ## Today page
 
-Four priority cards show all open work that is overdue, due today, due for follow-up, or waiting. Tap a card to focus the list; tap it again or choose Show all to clear that focus. Work due dates include project milestones; follow-up dates remain separate. Card totals always describe the whole workspace.
-
-**Desktop (wider than 1100 px):** the task list is on the left, and the right column shows:
-- an At a glance card with counts for coming up, not scheduled, waiting, blocked, and closed in the last 7 days. Tap Waiting or Blocked to filter.
-- long-term work.
-- Done today.
-- Outlook.
-
-**Phones:** a single column, with the filters folded behind a "Filters" button.
-
-**Filters:** Today and All Tasks share search (task, equipment, room, person, notes), responsible (you, others, or one person), area or room, priority, and status (including Blocked). Choose Filters to expand the selectors. Sort by urgency, work due date, priority, or oldest first; Today keeps its urgency groups and sorts within each group. Quick add expands on demand, with optional date, owner, and priority controls.
-
-**Rows:** each row's right-hand column shows the responsible person, the equipment (name · number · room), and the area. Task age appears in the list after 14 days and is highlighted; the editor and reports keep the full creation-date details. Next actions appear in both Today and All Tasks.
-
-**Task editor:** fields are grouped into Task details, Equipment & location, Schedule & priority, and Responsibility & follow-up. Blockers, management actions, and notes expand separately. The form scrolls while its header and action buttons stay visible.
-
-**Contacts:** search by name, company, type, phone, or email. Each card shows linked open-task counts and the earliest recorded follow-up date, with overdue follow-ups highlighted.
-
-Your own tasks show your name ("Ilan") instead of "Me". You can change the name under account menu → Data & backups. It is stored on the device only; task records still say `owner: "me"`, so changing the name never changes task data.
-
 One list, every open task exactly once, in the most urgent group that applies:
 
 1. **Needs attention:** work overdue or due today, and follow-ups due today or overdue.
@@ -52,20 +32,12 @@ Each row shows why it is there ("Overdue · 12 Nov", "Due today", "Follow-up due
 
 Due date, follow-up date, responsible party and next action are separate fields. "Waiting" (on someone) and "Blocked" (a blocker is recorded) are tracked separately.
 
-## Completing tasks and malfunctions
-
-Complete, a task checkbox, Mark done, or saving a new Done status opens a completion window. Enter a short description of what was done and the outcome. Solved is checked by default; uncheck it to close the task as Not solved. Cancel leaves the task open and preserves editor changes. The task is closed only after saving succeeds.
-
-Completion details are saved with the task, shown when opening a closed task, and included with its outcome in the report's existing Closed in the last 7 days section. Older completed records show Not recorded rather than an assumed outcome. Reopening keeps the recorded details; completing it again asks for a fresh description and outcome.
-
 ## Management report (PDF)
 
 Export report → choose filters (all optional) → Create PDF. By default it includes every unfinished task, including waiting and unscheduled ones.
 - **Header:** Scinai logo, generation time, the filters applied, and counts (open, overdue, high priority, waiting, blocked).
 - **Columns:** task, area/equipment, responsible, status and priority, work due date, next action and follow-up date, blocker and management action.
 - **Layout:** landscape A4 with column headers repeated on every page, page numbers, and wrapped text. Hebrew and mixed Hebrew/English text are drawn right to left using the embedded Rubik font (SIL OFL).
-- **Opened:** an Opened column shows the creation date and days open.
-- **Closed tasks:** a separate page lists tasks closed in the last 7 days (today and the 6 days before, by Israel date), with opened date, closed date and days open. The area/room, responsible and priority filters apply to it too.
 - **Not included:** contact phone numbers, e-mails and notes.
 - **Due-date filter:** using it excludes tasks that have no due date. The dialog and the report both say so.
 
@@ -73,19 +45,18 @@ Export report → choose filters (all optional) → Create PDF. By default it in
 
 | Format | Where it came from | Accepted on restore |
 |---|---|---|
-| Schema 3 | This version: exports (`"version": 3`), browser storage (`"schemaVersion": 3`) and the OneDrive file | Yes |
-| Schema 2 | Second release (with waiting / blocker / management fields) | Yes, converted unchanged |
+| Schema 2 | This version: exports (`"version": 2`), browser storage (`"schemaVersion": 2`) and the OneDrive file | Yes |
 | Schema 1 | First release: exports (`"version": 1`) and the OneDrive file | Yes, converted |
 | No version | First release: raw browser storage `{ tasks, contacts }`, or hand-made files | Yes, converted |
-| Newer than 3 | A future version | No (the app asks you to update first) |
+| Newer than 2 | A future version | No (the app asks you to update first) |
 
-Schema 2 **added** optional fields (`waitingFor`, `waitingWhat`, `blocker`, `managementAction`, and `nextAction` on any task). Schema 3 **adds** `equipmentName`, `equipmentNumber` and `room`. No fields were ever renamed or removed, so records from earlier releases convert unchanged:
+Schema 2 only **adds** optional fields (`waitingFor`, `waitingWhat`, `blocker`, `managementAction`, and `nextAction` on any task). No fields were renamed or removed, so first-release records convert unchanged:
 - **Preserved:** IDs, titles, notes, dates, status, priority, contacts, links between tasks and contacts, follow-up history, Hebrew text, and any unknown fields.
 - **Normalized values:** priority and status values written differently (for example "high", "In progress", "completed") are mapped explicitly. Values that can't be mapped are kept under `_legacy` on the record, with a note.
 - **Dates:** date-only values are copied as text. A timestamp is cut to its own written date, never converted through a time zone. Non-dates are kept under `_legacy` and the field is left empty.
 - **Records:** a record with no ID gets a new ID, and a duplicated ID keeps the most recently updated copy, both with a note. An entry that isn't a record at all blocks the restore, so nothing is dropped silently.
 
-**In-place upgrade:** the first time this version opens older browser data, it saves an untouched copy, one per source version (account menu → Data & backups → "Before the upgrade"), then rewrites the data in schema 3. Opening it again changes nothing. Older OneDrive files are converted in memory and rewritten on the next save; OneDrive's version history keeps the old file, and a copy is kept in the browser.
+**In-place upgrade:** the first time this version opens older browser data, it saves an untouched copy (account menu → Data & backups → "Before the upgrade"), then rewrites the data in schema 2. Opening it again changes nothing. Older OneDrive files are converted in memory and rewritten on the next save; OneDrive's version history keeps the old file, and a copy is kept in the browser.
 
 **Restore:** the selected file is only read. It is validated and converted first, and a preview shows its record counts, conversion notes and the effect of the restore.
 - **Merge** matches by ID: it adds or updates and never deletes or duplicates.

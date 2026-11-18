@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { STATUS_LABEL } from '../types';
-import { DEFAULT_FILTERS, reportCounts, reportOptions, selectClosedTasks, selectReportTasks, type ReportFilters } from '../lib/report';
+import { DEFAULT_FILTERS, reportCounts, reportOptions, selectReportTasks, type ReportFilters } from '../lib/report';
 import { downloadBlob } from '../lib/download';
 import { Sheet } from './Sheet';
 
@@ -14,7 +14,6 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
   const opts = useMemo(() => reportOptions(props.tasks, props.contacts), [props.tasks, props.contacts]);
   const selected = selectReportTasks(props.tasks, props.contacts, f, props.today);
   const c = reportCounts(selected, props.today);
-  const closed = selectClosedTasks(props.tasks, props.contacts, f, props.today);
   const set = <K extends keyof ReportFilters>(k: K, v: ReportFilters[K]) => setF((x) => ({ ...x, [k]: v }));
 
   async function make() {
@@ -25,7 +24,7 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
       const { buildReport } = await import('../report/pdf');
       const r = await buildReport(props.tasks, props.contacts, f, props.today);
       downloadBlob(r.blob, r.fileName);
-      setMsg(`Created ${r.fileName}: ${r.rowCount} open and ${r.closedCount} closed tasks on ${r.pages} pages.`);
+      setMsg(`Created ${r.fileName}: ${r.rowCount} tasks on ${r.pages} page${r.pages > 1 ? 's' : ''}.`);
     } catch (e) {
       setMsg(`The report could not be created: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -50,12 +49,11 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
     >
       <div className="form">
         <p data-testid="report-preview">
-          <b>{c.open}</b> unfinished tasks: {c.overdue} overdue, {c.high} high priority, {c.waiting} waiting, {c.blocked} blocked. Plus{' '}
-          <b>{closed.length}</b> closed in the last 7 days (on a separate page).
+          <b>{c.open}</b> unfinished tasks: {c.overdue} overdue, {c.high} high priority, {c.waiting} waiting, {c.blocked} blocked.
         </p>
         <div className="grid2">
           <label className="field">
-            <span>Area / room</span>
+            <span>Area / equipment</span>
             <select value={f.area} onChange={(e) => set('area', e.target.value)}>
               <option value="">All areas</option>
               {opts.areas.map((a) => (
@@ -99,8 +97,7 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
         </label>
         {f.dueBy && <p className="error-text">With a due-date filter, tasks that have no due date are left out of the report.</p>}
         <p className="subtle">
-          Open tasks: title, equipment, room, area, responsible, status, priority, work due date, opened date and days open, next action,
-          follow-up date, blocker and management action. Then a separate page of tasks closed in the last 7 days.
+          Includes title, area, responsible, status, priority, work due date, next action, follow-up date, blocker and management action.
           Contact phone numbers, e-mails and internal notes are not included.
         </p>
         {msg && <p role="status">{msg}</p>}
