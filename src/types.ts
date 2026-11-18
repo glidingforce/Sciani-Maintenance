@@ -1,6 +1,11 @@
 export type Priority = 'High' | 'Normal' | 'Low';
 export type Status = 'todo' | 'in_progress' | 'waiting' | 'done';
 export type Kind = 'task' | 'project';
+export const RECORD_CATEGORIES = ['malfunction', 'purchase_order', 'quotation', 'purchasing_other'] as const;
+export type RecordCategory = typeof RECORD_CATEGORIES[number];
+export const CATEGORY_LABEL: Record<RecordCategory, string> = {
+  malfunction: 'Malfunction', purchase_order: 'Purchase order', quotation: 'Quotation · הצעת מחיר', purchasing_other: 'Other purchasing follow-up',
+};
 export type Owner = 'me' | 'other';
 export type ContactType = 'Contractor' | 'Vendor' | 'Internal' | 'Other';
 
@@ -33,6 +38,10 @@ export interface OutlookLink {
 export interface Task {
   id: string;
   kind: Kind;
+  /** Missing on older records; displayed as Malfunction until explicitly recategorized. */
+  category?: RecordCategory;
+  /** Optional purchase order / quotation reference. */
+  referenceNumber?: string;
   title: string;
   priority: Priority;
   status: Status;
@@ -56,8 +65,19 @@ export interface Task {
   blocker?: string;
   /** Schema 2: approval, budget, access or another management decision needed. */
   managementAction?: string;
+  /** Schema 3: equipment name, e.g. "Huber chiller". */
+  equipmentName?: string;
+  /** Schema 3: equipment / asset number, e.g. "CH-02". */
+  equipmentNumber?: string;
+  /** Schema 3: room, e.g. "104" or "חדר נקי 3". */
+  room?: string;
   archived: boolean;
+  archiveReason?: 'duplicate';
   completedAt?: string;
+  /** What was done and how the issue was resolved (or why it was closed unresolved). */
+  completionNote?: string;
+  /** Undefined for older closures where the outcome was not recorded. */
+  solved?: boolean;
   createdAt: string;
   updatedAt: string;
   followUps: FollowUpEntry[];

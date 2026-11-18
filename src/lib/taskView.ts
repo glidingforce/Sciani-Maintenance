@@ -23,3 +23,13 @@ export function sortTasks(tasks: Task[], sort: TaskSort, today: string) {
     return urgent(a, b);
   });
 }
+
+/** Purchasing urgency includes supplier follow-ups, even without an expected delivery date. */
+export function sortPurchasing(tasks: Task[], sort: TaskSort, today: string) {
+  if (sort === 'priority' || sort === 'oldest') return sortTasks(tasks, sort, today);
+  const date = (t: Task) => [workDate(t), t.nextFollowUp].filter((d): d is string => !!d).sort()[0] || '9999-12-31';
+  const rank = (t: Task) => date(t) === '9999-12-31' ? 3 : date(t) < today ? 0 : date(t) === today ? 1 : 2;
+  const compare = compareDaily(today);
+  return [...tasks].sort((a, b) => (sort === 'urgent' ? rank(a) - rank(b) : date(a).localeCompare(date(b)))
+    || compare({ ...a, dueDate: date(a) }, { ...b, dueDate: date(b) }));
+}

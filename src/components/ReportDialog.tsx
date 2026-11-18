@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import type { Contact, Task } from '../types';
-import { STATUS_LABEL } from '../types';
-import { DEFAULT_FILTERS, reportCounts, reportOptions, selectReportTasks, type ReportFilters } from '../lib/report';
+import { CATEGORY_LABEL, RECORD_CATEGORIES, STATUS_LABEL } from '../types';
+import { DEFAULT_FILTERS, reportCounts, reportOptions, selectClosedTasks, selectReportTasks, type ReportFilters } from '../lib/report';
 import { downloadBlob } from '../lib/download';
 import { Sheet } from './Sheet';
+import type { CategoryFilter } from '../lib/categories';
 
 /** Management report: PDF of unfinished tasks. Contact details and internal notes are never included. */
-export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today: string; onClose: () => void }) {
-  const [f, setF] = useState<ReportFilters>(DEFAULT_FILTERS);
+export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today: string; category?: CategoryFilter; onClose: () => void }) {
+  const [f, setF] = useState<ReportFilters>({ ...DEFAULT_FILTERS, category: props.category ?? '' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const opts = useMemo(() => reportOptions(props.tasks, props.contacts), [props.tasks, props.contacts]);
   const selected = selectReportTasks(props.tasks, props.contacts, f, props.today);
   const c = reportCounts(selected, props.today);
+  const closed = selectClosedTasks(props.tasks, props.contacts, f, props.today);
   const set = <K extends keyof ReportFilters>(k: K, v: ReportFilters[K]) => setF((x) => ({ ...x, [k]: v }));
 
   async function make() {
@@ -24,7 +26,7 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
       const { buildReport } = await import('../report/pdf');
       const r = await buildReport(props.tasks, props.contacts, f, props.today);
       downloadBlob(r.blob, r.fileName);
-      setMsg(`Created ${r.fileName}: ${r.rowCount} tasks on ${r.pages} page${r.pages > 1 ? 's' : ''}.`);
+      setMsg(`Created ${r.fileName}: ${r.rowCount} open and ${r.closedCount} closed records on ${r.pages} pages.`);
     } catch (e) {
       setMsg(`The report could not be created: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -49,11 +51,16 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
     >
       <div className="form">
         <p data-testid="report-preview">
-          <b>{c.open}</b> unfinished tasks: {c.overdue} overdue, {c.high} high priority, {c.waiting} waiting, {c.blocked} blocked.
+          <b>{c.open}</b> open records: {c.overdue} overdue, {c.high} high priority, {c.waiting} waiting, {c.blocked} blocked. Plus{' '}
+          <b>{closed.length}</b> closed in the last 7 days (on a separate page).
         </p>
         <div className="grid2">
+          <label className="field"><span>Category</span><select value={f.category ?? ''} onChange={(e) => set('category', e.target.value as ReportFilters['category'])}>
+            <option value="">All categories</option><option value="purchasing">All purchasing</option>
+            {RECORD_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABEL[category]}</option>)}
+          </select></label>
           <label className="field">
-            <span>Area / equipment</span>
+            <span>Area / room</span>
             <select value={f.area} onChange={(e) => set('area', e.target.value)}>
               <option value="">All areas</option>
               {opts.areas.map((a) => (
@@ -97,7 +104,9 @@ export function ReportDialog(props: { tasks: Task[]; contacts: Contact[]; today:
         </label>
         {f.dueBy && <p className="error-text">With a due-date filter, tasks that have no due date are left out of the report.</p>}
         <p className="subtle">
-          Includes title, area, responsible, status, priority, work due date, next action, follow-up date, blocker and management action.
+          Open records: category, reference, title, equipment, room, area, responsible, status, priority, work due date, opened date and days open, next action,
+          follow-up date, blocker and management action. Then a separate page of records closed in the last 7 days,
+          including the work done, description, and recorded outcome.
           Contact phone numbers, e-mails and internal notes are not included.
         </p>
         {msg && <p role="status">{msg}</p>}

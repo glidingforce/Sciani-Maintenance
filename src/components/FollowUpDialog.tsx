@@ -109,7 +109,7 @@ export function FollowUpDialog(props: {
           <span>Next action</span>
           <input value={nextAction} maxLength={200} placeholder="e.g. Meet technician at the chiller" onChange={(e) => setNextAction(e.target.value)} />
         </label>
-        <p className="subtle">This does not complete the task. Clear “Next follow-up” if none is needed.</p>
+        <p className="subtle">This keeps the record open. Clear “Next follow-up” if none is needed.</p>
         {error && <p className="error-text">{error}</p>}
       </form>
     </Sheet>

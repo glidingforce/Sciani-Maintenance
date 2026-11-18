@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CalendarClock, Mail, MoreHorizontal, Phone } from 'lucide-react';
+import { Check, CalendarClock, Clock, Mail, MapPin, MoreHorizontal, Phone, User, Wrench } from 'lucide-react';
 import type { Contact, Task } from '../types';
 import { STATUS_LABEL } from '../types';
+import { categoryLabel, isPurchasing, outcomeLabel } from '../lib/categories';
 import { relativeDate, wallClockDate, wallClockTime, shortDate } from '../lib/dates';
-import { isOverdue, needsDetails, ownerLabel, waitingText, type DailyItem, type QuickAction } from '../lib/tasks';
+import { createdDate, daysLabel, daysOpen, equipmentText, needsDetails, ownerLabel, waitingText, workDate, type DailyItem, type QuickAction } from '../lib/tasks';
 
 function RowMenu({ task, onQuick, onOpen }: { task: Task; onQuick: (a: QuickAction) => void; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
@@ -50,15 +51,21 @@ function RowMenu({ task, onQuick, onOpen }: { task: Task; onQuick: (a: QuickActi
       </button>
       {open && (
         <div className="menu" role="menu">
+          {!task.archived && task.status !== 'done' && <>
           {task.status !== 'in_progress' && item('Start working on it', 'start')}
           {task.status !== 'waiting' && item('Waiting on someone…', 'waiting')}
           {task.status !== 'todo' && item('Back to “To do”', 'todo')}
-          {item('Mark done', 'done')}
+          {item(isPurchasing(task) ? 'Close follow-up…' : 'Mark done', 'done')}
           <hr />
           {item('Set due date: tomorrow', 'tomorrow')}
           {item('Set due date: next week', 'nextweek')}
           <hr />
           {task.priority !== 'High' ? item('Make it High priority', 'high') : item('Set to Normal priority', 'normal')}
+          </>}
+          {task.archived ? item('Restore from archive', 'restore') : <>
+            {item('Move to archive', 'archive')}
+            {item('Archive duplicate', 'duplicate')}
+          </>}
           <button
             type="button"
             role="menuitem"
@@ -82,12 +89,14 @@ export function TaskRow(props: {
   onToggle: (t: Task) => void;
   onOpen: (t: Task) => void;
   onQuick?: (t: Task, a: QuickAction) => void;
+  onLog?: (t: Task) => void;
 }) {
   const { task: t, today } = props;
   const done = t.status === 'done';
-  const overdue = isOverdue(t, today);
+  const dueDate = workDate(t);
+  const overdue = !done && !t.archived && !!dueDate && dueDate < today;
   const context = [t.area, t.requester && `Requested by ${t.requester}`].filter(Boolean).join(' · ');
-  const accent = done ? '' : overdue ? ' accent-overdue' : t.priority === 'High' ? ' accent-high' : '';
+  const accent = done ? '' : overdue || t.blocker ? ' accent-overdue' : t.priority === 'High' ? ' accent-high' : '';
   return (
     <div className={`task${done ? ' done' : ''}${accent}${props.onQuick ? ' has-menu' : ''}`} data-testid="task-row">
       <button
@@ -95,6 +104,7 @@ export function TaskRow(props: {
         className="check"
         role="checkbox"
         aria-checked={done}
+        disabled={t.archived}
         aria-label={done ? `Reopen “${t.title}”` : `Mark “${t.title}” done`}
         onClick={() => props.onToggle(t)}
       >
@@ -105,11 +115,18 @@ export function TaskRow(props: {
           {t.title}
         </button>
         <div className="detail">
-          <span>{[context, ownerLabel(t, props.contacts)].filter(Boolean).join(' · ')}</span>
+          <span className="tag">{categoryLabel(t)}</span>
+          {t.referenceNumber && <span>Ref: {t.referenceNumber}</span>}
+          <span>{[equipmentText(t), context, ownerLabel(t, props.contacts)].filter(Boolean).join(' · ')}</span>
+          <span className="age" hidden={daysOpen(t, today) < 14}>
+            Opened {shortDate(createdDate(t), today)} · {daysLabel(daysOpen(t, today))}
+          </span>
           {(t.status === 'in_progress' || t.status === 'waiting') && (
             <span className={`tag status-${t.status}`}>{STATUS_LABEL[t.status]}</span>
           )}
-          {t.archived && <span className="tag">Archived</span>}
+          {t.blocker && !done && <span className="reason urgent">Blocked</span>}
+          {done && t.solved !== undefined && <span className={`tag${t.solved ? ' status-solved' : ' warn'}`}>{outcomeLabel(t)}</span>}
+          {t.archived && <span className="tag">{t.archiveReason === 'duplicate' ? 'Archived duplicate' : 'Archived'}</span>}
           {t.outlook?.state === 'scheduled' && t.outlook.start && (
             <span className="tag" title="Scheduled in Outlook">
               <CalendarClock className="icon" width={12} height={12} style={{ display: 'inline', verticalAlign: '-1px' }} />{' '}
@@ -118,21 +135,27 @@ export function TaskRow(props: {
           )}
           {t.outlook?.state === 'removed' && <span className="tag warn">Removed from Outlook</span>}
         </div>
+        {t.nextAction && !done && <div className="next"><b>Next:</b> {t.nextAction}</div>}
+        {done && t.completionNote && <p className="completion-note row-completion" dir="auto">{t.completionNote}</p>}
+        {!done && !t.archived && isPurchasing(t) && props.onLog && <div className="row-actions"><button type="button" className="pill" onClick={() => props.onLog!(t)}>Log update</button></div>}
       </div>
       <div className="task-side">
+        {isPurchasing(t) && !done && t.nextFollowUp && <span className={`due${t.nextFollowUp < today ? ' overdue' : ''}`}>
+          {t.nextFollowUp < today ? `Follow-up overdue · ${shortDate(t.nextFollowUp, today)}` : t.nextFollowUp === today ? 'Follow-up today' : `Follow-up · ${shortDate(t.nextFollowUp, today)}`}
+        </span>}
         <span className={`priority ${t.priority}`}>
           <i className="dot" aria-hidden="true" />
           {t.priority}
         </span>
-        {t.dueDate ? (
+        {dueDate ? (
           <span className={`due${overdue ? ' overdue' : ''}`}>
-            {overdue ? `Overdue · ${shortDate(t.dueDate, today)}` : relativeDate(t.dueDate, today)}
+            {overdue ? `Overdue · ${shortDate(dueDate, today)}` : `${isPurchasing(t) ? 'Expected · ' : ''}${relativeDate(dueDate, today)}`}
           </span>
         ) : (
-          <span className="due">No date</span>
+          <span className="due">{isPurchasing(t) ? 'No expected date' : 'No date'}</span>
         )}
       </div>
-      {props.onQuick && (done ? <span /> : <RowMenu task={t} onQuick={(a) => props.onQuick!(t, a)} onOpen={() => props.onOpen(t)} />)}
+      {props.onQuick && <RowMenu task={t} onQuick={(a) => props.onQuick!(t, a)} onOpen={() => props.onOpen(t)} />}
     </div>
   );
 }
@@ -151,12 +174,13 @@ export function DailyRow(props: {
   const contact = props.contacts.find((c) => c.id === t.contactId);
   const waiting = waitingText(t);
   const who = ownerLabel(t, props.contacts);
-  const context = [waiting ?? (t.owner === 'other' ? who : undefined), t.area].filter(Boolean).join(' · ');
+  const equip = equipmentText(t);
+  const days = daysOpen(t, props.today);
   const missing = needsDetails(t);
   const canLog = t.owner === 'other' || !!t.contactId || t.status === 'waiting' || !!t.nextFollowUp;
   const urgent = reasons.some((r) => r.tone === 'urgent');
   return (
-    <div className={`task daily${urgent ? ' accent-overdue' : t.priority === 'High' ? ' accent-high' : ''}`} data-testid="task-row">
+    <div className={`task daily${urgent || t.blocker ? ' accent-overdue' : t.priority === 'High' ? ' accent-high' : ''}`} data-testid="task-row">
       <button
         type="button"
         className="check"
@@ -186,7 +210,7 @@ export function DailyRow(props: {
             </span>
           )}
         </div>
-        {context && <div className="detail">{context}</div>}
+        {waiting && <div className="detail waiting-line">{waiting}</div>}
         {t.nextAction ? (
           <div className="next">
             <b>Next:</b> {t.nextAction}
@@ -217,6 +241,24 @@ export function DailyRow(props: {
             )}
           </div>
         )}
+      </div>
+      <div className="meta" aria-label="Details">
+        <span className="meta-line">
+          <User className="icon" aria-hidden="true" /> {who}
+        </span>
+        {equip && (
+          <span className="meta-line">
+            <Wrench className="icon" aria-hidden="true" /> {equip}
+          </span>
+        )}
+        {t.area && (
+          <span className="meta-line">
+            <MapPin className="icon" aria-hidden="true" /> {t.area}
+          </span>
+        )}
+        <span hidden={days < 14} className={`meta-line age${days >= 14 ? ' old' : ''}`} title={`Created ${createdDate(t)}`}>
+          <Clock className="icon" aria-hidden="true" /> {shortDate(createdDate(t), props.today)} · {daysLabel(days)}
+        </span>
       </div>
       <RowMenu task={t} onQuick={(a) => props.onQuick(t, a)} onOpen={() => props.onOpen(t)} />
     </div>

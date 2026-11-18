@@ -1,5 +1,5 @@
 import type { Contact, Dataset, Task } from '../types';
-import { SAFETY_KEYS, SaveError, type Repo, type StorageMode } from './repo';
+import { SAFETY_KEYS, SaveError, preUpgradeKey, type Repo, type StorageMode } from './repo';
 import { demoData } from './demo';
 import { SCHEMA_VERSION, convertToCurrent } from '../lib/backup';
 
@@ -30,8 +30,9 @@ export class LocalRepo implements Repo {
     // Older data: convert, but keep an untouched copy first.
     const res = convertToCurrent(parsed);
     if (!res.ok) throw new SaveError(`The saved data could not be upgraded: ${res.errors.join(' ')} Nothing was changed.`);
-    if (this.mode === 'local' && this.store.getItem(SAFETY_KEYS.preUpgradeLocal) === null) {
-      this.store.setItem(SAFETY_KEYS.preUpgradeLocal, JSON.stringify({ savedAt: new Date().toISOString(), raw }));
+    const key = preUpgradeKey(SAFETY_KEYS.preUpgradeLocal, typeof stored?.schemaVersion === 'number' ? stored.schemaVersion : 'none');
+    if (this.mode === 'local' && this.store.getItem(key) === null) {
+      this.store.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), fromVersion: stored?.schemaVersion ?? 1, raw }));
     }
     this.write(res.data);
     return res.data;

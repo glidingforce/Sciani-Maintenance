@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable, { type CellHookData } from 'jspdf-autotable';
 import type { Contact, DateOnly, Task } from '../types';
-import { describeFilters, reportCounts, selectReportTasks, toRow, type ReportFilters } from '../lib/report';
+import { closedRow, closedWindowStart, describeFilters, reportCounts, selectClosedTasks, selectReportTasks, toRow, type ReportFilters } from '../lib/report';
 import { RUBIK_BOLD, RUBIK_REGULAR } from './fonts';
 import { isRtl, toVisual } from './bidi';
 import logoUrl from '../assets/scinai-logo.png';
@@ -21,14 +21,29 @@ const MARGIN = 12;
 const PAD = 1.8;
 // Landscape A4 is 297 mm wide: 273 mm of table.
 const COLS = [
-  { key: 'title', header: 'Task', width: 48 },
-  { key: 'area', header: 'Area / equipment', width: 28 },
-  { key: 'responsible', header: 'Responsible', width: 32 },
-  { key: 'status', header: 'Status · priority', width: 32 },
-  { key: 'due', header: 'Work due', width: 22 },
-  { key: 'next', header: 'Next action · follow-up', width: 56 },
-  { key: 'mgmt', header: 'Blocker · management action', width: 55 },
+  { key: 'title', header: 'Record · category', width: 44 },
+  { key: 'equip', header: 'Equipment · room · area', width: 34 },
+  { key: 'responsible', header: 'Responsible', width: 28 },
+  { key: 'status', header: 'Status · priority', width: 28 },
+  { key: 'due', header: 'Work due', width: 23 },
+  { key: 'opened', header: 'Opened', width: 23 },
+  { key: 'next', header: 'Next action · follow-up', width: 47 },
+  { key: 'mgmt', header: 'Blocker · management action', width: 46 },
 ] as const;
+
+const CLOSED_COLS = [
+  { key: 'title', header: 'Record · category', width: 45 },
+  { key: 'equip', header: 'Equipment · room · area', width: 36 },
+  { key: 'responsible', header: 'Responsible', width: 27 },
+  { key: 'priority', header: 'Priority', width: 18 },
+  { key: 'opened', header: 'Opened', width: 22 },
+  { key: 'closed', header: 'Closed', width: 22 },
+  { key: 'days', header: 'Days open', width: 18 },
+  { key: 'outcome', header: 'Outcome', width: 24 },
+  { key: 'completion', header: 'Work done · resolution', width: 61 },
+] as const;
+
+const daysText = (n: number) => (n === 1 ? '1 day' : `${n} days`);
 
 function setupFonts(doc: jsPDF) {
   doc.addFileToVFS('Rubik-Regular.ttf', RUBIK_REGULAR);
@@ -58,6 +73,25 @@ function drawText(doc: jsPDF, text: string, x: number, y: number, maxWidth: numb
   return lines.length;
 }
 
+function makeParseCell(doc: jsPDF) {
+  return (cols: readonly { key: string; width: number }[]) => (data: CellHookData) => {
+    if (data.section !== 'body') return;
+    const key = data.column.dataKey as string;
+    const rowRaw = data.row.raw as Record<string, unknown>;
+    const raw = String(rowRaw[key] ?? '');
+    const width = (cols.find((c) => c.key === key)?.width ?? 30) - 2 * PAD - 0.6;
+    doc.setFont('Rubik', key === 'title' ? 'bold' : 'normal');
+    doc.setFontSize(8.5);
+    const { lines, rtl } = layout(doc, raw, width);
+    data.cell.text = lines;
+    data.cell.styles.halign = rtl ? 'right' : 'left';
+    if (key === 'title') data.cell.styles.fontStyle = 'bold';
+    if (key === 'due' && rowRaw._overdue) data.cell.styles.textColor = OVERDUE;
+    if (key === 'due' && raw === 'Not scheduled') data.cell.styles.textColor = MUTED;
+    if (key === 'opened' && Number(rowRaw._days) >= 14) data.cell.styles.textColor = OVERDUE;
+  };
+}
+
 function loadLogo(): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -71,6 +105,7 @@ export interface ReportResult {
   blob: Blob;
   fileName: string;
   rowCount: number;
+  closedCount: number;
   pages: number;
 }
 
@@ -78,11 +113,13 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
   const selected = selectReportTasks(tasks, contacts, filters, today);
   const counts = reportCounts(selected, today);
   const rows = selected.map((t) => toRow(t, contacts, today));
+  const closed = selectClosedTasks(tasks, contacts, filters, today).map((t) => closedRow(t, contacts, today));
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
   setupFonts(doc);
-  doc.setProperties({ title: 'Scinai Facility Maintenance: Open Tasks', subject: 'Maintenance report', creator: 'Scinai Maintenance' });
+  doc.setProperties({ title: 'Scinai Maintenance & Purchasing', subject: 'Maintenance and purchasing report', creator: 'Scinai Maintenance' });
   const pageW = doc.internal.pageSize.getWidth();
+  const parseCell = makeParseCell(doc);
   const logo = await loadLogo();
   const generated = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Jerusalem',
@@ -99,7 +136,7 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
   doc.setFont('Rubik', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(...PLUM);
-  doc.text('Facility Maintenance: Open Tasks', MARGIN + 36, y + 7);
+  doc.text('Maintenance & Purchasing', MARGIN + 36, y + 7);
   doc.setFont('Rubik', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...MUTED);
@@ -109,7 +146,7 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
   const filterText = describeFilters(filters);
   doc.setFontSize(9);
   doc.setTextColor(...INK);
-  const scope = filterText.length ? `Filters: ${filterText.join(' · ')}` : 'Scope: all unfinished tasks, including waiting, blocked and unscheduled work (no filters).';
+  const scope = filterText.length ? `Filters: ${filterText.join(' · ')}` : 'Scope: all open maintenance and purchasing records, including waiting, blocked and unscheduled work (no filters).';
   y += drawText(doc, scope, MARGIN, y, pageW - 2 * MARGIN) * 4.2;
 
   // Summary counts
@@ -119,8 +156,9 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
     ['High priority', counts.high, false],
     ['Waiting', counts.waiting, false],
     ['Blocked', counts.blocked, counts.blocked > 0],
+    ['Closed, last 7 days', closed.length, false],
   ];
-  const boxW = 40;
+  const boxW = 41;
   boxes.forEach(([label, value, warn], i) => {
     const x = MARGIN + i * (boxW + 4);
     doc.setFillColor(...(warn ? ([251, 236, 239] as [number, number, number]) : PALE));
@@ -132,22 +170,24 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
     doc.setFont('Rubik', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...MUTED);
-    doc.text(label, x + 14, y + 8.3);
+    doc.text(label, x + (value > 99 ? 17 : 13), y + 8.3);
   });
   doc.setFontSize(7.5);
-  doc.text('Waiting = waiting on someone else. Blocked = a blocker is recorded. A task can be both.', MARGIN, y + 18);
+  doc.text('Waiting = waiting on someone else. Blocked = a blocker is recorded. A record can be both.', MARGIN, y + 18);
   y += 22;
 
   // ---- Table ----
   const body = rows.map((r) => ({
-    title: r.title,
-    area: r.area,
+    title: [r.title, r.category, r.reference ? `Ref: ${r.reference}` : ''].filter(Boolean).join('\n'),
+    equip: [r.equipment, r.area].filter(Boolean).join('\n'),
+    opened: `${fmt(r.opened)}\n${daysText(r.daysOpen)}`,
     responsible: r.responsible,
     status: `${r.status}\n${r.priority} priority`,
     due: r.due ? `${fmt(r.due)}${r.overdue ? '\nOverdue' : ''}` : 'Not scheduled',
     next: [r.nextAction, r.followUp ? `Follow-up: ${fmt(r.followUp)}` : ''].filter(Boolean).join('\n'),
     mgmt: [r.blocker ? `Blocker: ${r.blocker}` : '', r.managementAction ? `Management action: ${r.managementAction}` : ''].filter(Boolean).join('\n'),
     _overdue: r.overdue,
+    _days: r.daysOpen,
   }));
 
   autoTable(doc, {
@@ -161,38 +201,71 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
     styles: { font: 'Rubik', fontSize: 8.5, cellPadding: PAD, textColor: INK, lineColor: LINE, lineWidth: { bottom: 0.2 }, valign: 'top', overflow: 'linebreak' },
     headStyles: { font: 'Rubik', fontStyle: 'bold', textColor: PLUM, fillColor: PALE, fontSize: 8 },
     columnStyles: Object.fromEntries(COLS.map((c) => [c.key, { cellWidth: c.width }])),
-    didParseCell: (data: CellHookData) => {
-      if (data.section !== 'body') return;
-      const key = data.column.dataKey as string;
-      const raw = String((data.row.raw as Record<string, unknown>)[key] ?? '');
-      const width = (COLS.find((c) => c.key === key)?.width ?? 30) - 2 * PAD - 0.6;
-      doc.setFont('Rubik', key === 'title' ? 'bold' : 'normal');
-      doc.setFontSize(8.5);
-      const { lines, rtl } = layout(doc, raw, width);
-      data.cell.text = lines;
-      data.cell.styles.halign = rtl ? 'right' : 'left';
-      if (key === 'title') data.cell.styles.fontStyle = 'bold';
-      if (key === 'due' && (data.row.raw as { _overdue: boolean })._overdue) data.cell.styles.textColor = OVERDUE;
-      if (key === 'due' && raw === 'Not scheduled') data.cell.styles.textColor = MUTED;
-    },
-    didDrawPage: () => {
-      // Compact running header on continuation pages.
-      if (doc.getNumberOfPages() > 1) {
-        doc.setFont('Rubik', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(...PLUM);
-        doc.text('Scinai · Facility Maintenance: Open Tasks', MARGIN, MARGIN + 4);
-        doc.setFont('Rubik', 'normal');
-        doc.setTextColor(...MUTED);
-        doc.text(`Generated ${generated}`, pageW - MARGIN, MARGIN + 4, { align: 'right' });
-      }
-    },
+    didParseCell: parseCell(COLS),
   });
 
   if (rows.length === 0) {
     doc.setFontSize(10);
     doc.setTextColor(...MUTED);
-    doc.text('No unfinished tasks match these filters.', MARGIN, y + 16);
+    doc.text('No open records match these filters.', MARGIN, y + 16);
+  }
+
+  // ---- Closed in the last 7 days: its own section on a new page ----
+  doc.addPage();
+  let cy = MARGIN + 14;
+  doc.setFont('Rubik', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...PLUM);
+  doc.text(`Closed in the last 7 days (${fmt(closedWindowStart(today))} to ${fmt(today)})`, MARGIN, cy);
+  doc.setFont('Rubik', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  const closedScope = [filters.category && describeFilters({ ...filters, area: '', responsible: '', priority: '', status: 'all', dueBy: '' })[0], filters.area && `Area / room: ${filters.area}`, filters.responsible && `Responsible: ${filters.responsible}`, filters.priority && `Priority: ${filters.priority}`].filter(Boolean);
+  cy += 5;
+  doc.text(
+    `${closed.length} record${closed.length === 1 ? '' : 's'} closed.${closedScope.length ? ` Filters: ${closedScope.join(' · ')}.` : ''} Status and due-date filters apply to open records only.`,
+    MARGIN,
+    cy,
+  );
+  cy += 4;
+  if (closed.length === 0) {
+    doc.setFontSize(10);
+    doc.text('No records were closed in this period.', MARGIN, cy + 8);
+  } else {
+    autoTable(doc, {
+      startY: cy,
+      margin: { left: MARGIN, right: MARGIN, top: MARGIN + 12, bottom: MARGIN + 6 },
+      columns: CLOSED_COLS.map((c) => ({ header: c.header, dataKey: c.key })),
+      body: closed.map((r) => ({
+        title: [r.title, r.category, r.reference ? `Ref: ${r.reference}` : ''].filter(Boolean).join('\n'),
+        equip: [r.equipment, r.area].filter(Boolean).join('\n'),
+        responsible: r.responsible,
+        priority: r.priority,
+        opened: fmt(r.opened),
+        closed: fmt(r.closed),
+        days: daysText(r.daysOpen),
+        outcome: r.outcome,
+        completion: r.completionNote || 'Not recorded',
+      })),
+      showHead: 'everyPage',
+      rowPageBreak: 'avoid',
+      theme: 'plain',
+      styles: { font: 'Rubik', fontSize: 8.5, cellPadding: PAD, textColor: INK, lineColor: LINE, lineWidth: { bottom: 0.2 }, valign: 'top', overflow: 'linebreak' },
+      headStyles: { font: 'Rubik', fontStyle: 'bold', textColor: PLUM, fillColor: [233, 243, 238], fontSize: 8 },
+      columnStyles: Object.fromEntries(CLOSED_COLS.map((c) => [c.key, { cellWidth: c.width }])),
+      didParseCell: parseCell(CLOSED_COLS),
+    });
+  }
+  // Running header on the closed page(s) too.
+  for (let i = 2; i <= doc.getNumberOfPages(); i++) {
+    doc.setPage(i);
+    doc.setFont('Rubik', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...PLUM);
+    doc.text('Scinai · Facility Maintenance report', MARGIN, MARGIN + 4);
+    doc.setFont('Rubik', 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(`Generated ${generated}`, pageW - MARGIN, MARGIN + 4, { align: 'right' });
   }
 
   // Page numbers, drawn after the table so the total is known.
@@ -211,6 +284,7 @@ export async function buildReport(tasks: Task[], contacts: Contact[], filters: R
     blob: doc.output('blob'),
     fileName: `Scinai-maintenance-report-${today}.pdf`,
     rowCount: rows.length,
+    closedCount: closed.length,
     pages,
   };
 }

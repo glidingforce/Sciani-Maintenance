@@ -212,3 +212,47 @@ describe('rejected files leave everything unchanged', () => {
     expect(r.errors.length).toBeGreaterThan(0);
   });
 });
+
+// Real files produced by the v2 app (waiting fields, blocker and management action filled in).
+const v2ExportText = readFileSync(new URL('./fixtures/v2-export.json', import.meta.url), 'utf8');
+const v2StorageText = readFileSync(new URL('./fixtures/v2-localstorage.json', import.meta.url), 'utf8');
+const v2Export = JSON.parse(v2ExportText);
+const v2Storage = JSON.parse(v2StorageText);
+
+describe('real v2 backups into schema 3', () => {
+  it('the v2 export converts without changes or notes, keeping the v2 fields', () => {
+    expect(v2Export.version).toBe(2);
+    const r = convertToCurrent(v2Export);
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.data.tasks).toEqual(v2Export.tasks);
+    expect(r.data.contacts).toEqual(v2Export.contacts);
+    const chiller = r.data.tasks.find((t) => t.title.startsWith('Huber'))!;
+    expect([chiller.waitingFor, chiller.waitingWhat, chiller.nextAction]).toEqual(['קבלן קירור', 'visit date', 'Call to confirm the visit today']);
+    const proj = r.data.tasks.find((t) => t.kind === 'project')!;
+    expect([proj.blocker, proj.managementAction]).toEqual(['No PO yet', 'אישור תקציב להשבתה']);
+    expect(r.data.tasks.find((t) => t.title.startsWith('Investigate'))!.status).toBe('done');
+    for (const t of r.data.tasks) expect([t.equipmentName, t.equipmentNumber, t.room]).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('upgrades v2 browser data in place with its own safety copy, leaving an older v1 copy alone', async () => {
+    const store = mem();
+    store.setItem(SAFETY_KEYS.preUpgradeLocal, '{"raw":"v1 copy"}');
+    store.setItem(STORAGE_KEYS.local, v2StorageText);
+    const loaded = await new LocalRepo('local', store as unknown as Storage).load();
+    expect(loaded.tasks).toEqual(v2Storage.tasks);
+    expect(JSON.parse(store.getItem(STORAGE_KEYS.local)!).schemaVersion).toBe(3);
+    expect(JSON.parse(store.getItem(`${SAFETY_KEYS.preUpgradeLocal}:v2`)!).raw).toBe(v2StorageText);
+    expect(store.getItem(SAFETY_KEYS.preUpgradeLocal)).toBe('{"raw":"v1 copy"}');
+    for (let i = 0; i < 2; i++) await new LocalRepo('local', store as unknown as Storage).load();
+    expect(JSON.parse(store.getItem(STORAGE_KEYS.local)!).tasks).toHaveLength(8);
+  });
+
+  it('v1 data jumps straight to schema 3 unchanged', async () => {
+    const store = mem();
+    store.setItem(STORAGE_KEYS.local, v1StorageText);
+    const loaded = await new LocalRepo('local', store as unknown as Storage).load();
+    expect(loaded.tasks).toEqual(v1Storage.tasks);
+    expect(JSON.parse(store.getItem(STORAGE_KEYS.local)!).schemaVersion).toBe(3);
+  });
+});

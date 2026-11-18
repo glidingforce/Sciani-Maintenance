@@ -1,5 +1,5 @@
 import type { Contact, ContactType, Dataset, Priority, Status, Task } from '../types';
-import { CONTACT_TYPES } from '../types';
+import { CONTACT_TYPES, RECORD_CATEGORIES } from '../types';
 import { uid } from './tasks';
 
 /**
@@ -10,8 +10,10 @@ import { uid } from './tasks';
  *  2: adds optional task fields waitingFor, waitingWhat, blocker,
  *    managementAction, and allows nextAction on every task. Nothing was
  *    renamed or removed, so v1 records are valid v2 records.
+ *  3: adds optional task fields equipmentName, equipmentNumber, room.
+ *    Again nothing renamed or removed: v1 and v2 records are valid v3 records.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const APP_ID = 'scinai-maintenance';
 
 export interface BackupFile extends Dataset {
@@ -129,6 +131,23 @@ function convertTask(raw: Record<string, unknown>, index: number, warn: (m: stri
   }
   for (const f of DATE_FIELDS) convertDate(t, f, label, warn);
   t.archived = t.archived === true;
+  if (t.category !== undefined && !RECORD_CATEGORIES.includes(t.category as typeof RECORD_CATEGORIES[number])) {
+    keepLegacy(t, 'category', t.category); delete t.category;
+    warn(`${label}: unknown category; original kept. Choose a category in the editor.`);
+  }
+  if (t.referenceNumber !== undefined && typeof t.referenceNumber !== 'string') {
+    keepLegacy(t, 'referenceNumber', t.referenceNumber); delete t.referenceNumber;
+    warn(`${label}: invalid reference number; original kept.`);
+  }
+  // Optional completion fields are additive: older closures stay unrecorded.
+  for (const field of ['completionNote', 'solved'] as const) {
+    const value = t[field];
+    if (value !== undefined && (field === 'completionNote' ? typeof value !== 'string' : typeof value !== 'boolean')) {
+      keepLegacy(t, field, value);
+      delete t[field];
+      warn(`${label}: ${field} has an invalid value; the original is kept in the record.`);
+    }
+  }
   if (!str(t.createdAt)) t.createdAt = str(t.updatedAt) ?? now;
   if (!str(t.updatedAt)) t.updatedAt = t.createdAt;
   if (t.status === 'done' && !str(t.completedAt)) {

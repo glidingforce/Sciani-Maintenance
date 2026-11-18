@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import type { Contact, ContactType, Kind, Owner, Priority, Status, Task } from '../types';
-import { CONTACT_TYPES, PRIORITIES, STATUSES, STATUS_LABEL } from '../types';
-import { complete, newContact, reopen, setArchived } from '../lib/tasks';
+import type { Contact, ContactType, Kind, Owner, Priority, RecordCategory, Status, Task } from '../types';
+import { CATEGORY_LABEL, CONTACT_TYPES, PRIORITIES, RECORD_CATEGORIES, STATUSES, STATUS_LABEL } from '../types';
+import { categoryOf, isPurchasing, outcomeLabel } from '../lib/categories';
+import { complete, createdDate, daysLabel, daysOpen, newContact, reopen, setArchived } from '../lib/tasks';
+import { getMyName } from '../lib/settings';
+import { shortDate, todayISO } from '../lib/dates';
 import { Segmented, Sheet } from './Sheet';
+import { CompletionDialog } from './CompletionDialog';
 
 export interface EditorActions {
   saveTask: (t: Task) => Promise<boolean>;
@@ -21,14 +25,20 @@ export function TaskEditor(props: {
   const [t, setT] = useState<Task>(props.task);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [completionDraft, setCompletionDraft] = useState<Task | null>(null);
   const [newContactDraft, setNewContactDraft] = useState<{ name: string; company: string; type: ContactType; phone: string; email: string } | null>(null);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const opt = (v: string) => (v.trim() ? v : undefined);
-  const hasDetails = !!(t.area || t.requester || t.notes || t.blocker || t.managementAction || (t.owner === 'me' && (t.contactId || t.nextFollowUp)));
+  const hasDetails = !!(t.notes || t.blocker || t.managementAction);
+  const purchasing = isPurchasing(t);
 
-  async function commit(next: Task, close = true) {
-    if (!next.title.trim()) return setError('Give the task a title.');
-    if (next.kind === 'project' && !next.nextAction?.trim()) return setError('Long-term work needs a next action.');
+  async function commit(next: Task, close = true, completionConfirmed = false): Promise<boolean> {
+    if (!next.title.trim()) { setError('Give the task a title.'); return false; }
+    if (next.kind === 'project' && !next.nextAction?.trim()) { setError('Long-term work needs a next action.'); return false; }
+    if (next.status === 'done' && (props.isNew || props.task.status !== 'done') && !completionConfirmed) {
+      setCompletionDraft(next);
+      return false;
+    }
     setBusy(true);
     setError('');
     let toSave = { ...next, title: next.title.trim(), updatedAt: new Date().toISOString() };
@@ -42,16 +52,18 @@ export function TaskEditor(props: {
       });
       if (!(await props.actions.saveContact(c))) {
         setBusy(false);
-        return setError('The new contact was not saved, so the task was not saved either.');
+        setError('The new contact was not saved, so the task was not saved either.');
+        return false;
       }
       toSave = { ...toSave, contactId: c.id };
       setNewContactDraft(null);
     }
     const ok = await props.actions.saveTask(toSave);
     setBusy(false);
-    if (!ok) return setError('Not saved. Check the message at the bottom of the screen and try again.');
+    if (!ok) { setError('Not saved. Check the message at the bottom of the screen and try again.'); return false; }
     setT(toSave);
     if (close) props.onClose();
+    return true;
   }
 
   const contactSelect = (
@@ -115,16 +127,16 @@ export function TaskEditor(props: {
         Cancel
       </button>
       <button type="submit" form="task-form" className="btn btn-primary" disabled={busy}>
-        {busy ? 'Saving…' : 'Save task'}
+        {busy ? 'Saving…' : purchasing ? 'Save purchasing record' : 'Save malfunction'}
       </button>
     </>
   ) : (
     <>
-      <button type="button" className="btn" disabled={busy} onClick={() => commit(t.status === 'done' ? reopen(t) : complete(t))}>
-        {t.status === 'done' ? 'Reopen' : 'Complete'}
+      <button type="button" className="btn" disabled={busy} onClick={() => commit(t.status === 'done' ? reopen(t) : { ...t, status: 'done' })}>
+        {t.status === 'done' ? 'Reopen' : purchasing ? 'Close follow-up' : 'Complete'}
       </button>
       <button type="button" className="btn" disabled={busy} onClick={() => commit(setArchived(t, !t.archived))}>
-        {t.archived ? 'Restore' : 'Archive'}
+        {t.archived ? 'Restore from archive' : 'Move to archive'}
       </button>
       {props.actions.logFollowUp && (
         <button type="button" className="btn" onClick={() => props.actions.logFollowUp!(t)}>
@@ -144,7 +156,8 @@ export function TaskEditor(props: {
   );
 
   return (
-    <Sheet title={props.isNew ? 'New task' : t.kind === 'project' ? 'Long-term work' : 'Task'} onClose={props.onClose} footer={footer}>
+    <>
+    <Sheet title={props.isNew ? (purchasing ? 'New purchasing record' : 'New malfunction') : purchasing ? 'Purchasing record' : t.kind === 'project' ? 'Long-term work' : 'Malfunction'} onClose={props.onClose} footer={footer}>
       <form
         id="task-form"
         className="form"
@@ -154,22 +167,28 @@ export function TaskEditor(props: {
           void commit(t);
         }}
       >
-        <Segmented<Kind>
+        <fieldset className="editor-section"><legend>Record details</legend>
+        <label className="field"><span>Category</span><select value={categoryOf(t)} onChange={(e) => {
+          const category = e.target.value as RecordCategory;
+          setT((current) => ({ ...current, category, ...(category !== 'malfunction' ? { kind: 'task' as const } : {}) }));
+        }}>{RECORD_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABEL[category]}</option>)}</select></label>
+        {purchasing && <label className="field"><span>Order / quotation reference (optional)</span><input value={t.referenceNumber ?? ''} maxLength={100} placeholder="e.g. PO-2026-018" onChange={(e) => set('referenceNumber', opt(e.target.value))} /></label>}
+        {!purchasing && <Segmented<Kind>
           label="Type"
           value={t.kind}
           options={[
-            { value: 'task', label: 'Task' },
+            { value: 'task', label: 'Malfunction' },
             { value: 'project', label: 'Long-term' },
           ]}
           onChange={(v) => set('kind', v)}
-        />
+        />}
         <label className="field">
           <span>Title</span>
           <input
             autoFocus={props.isNew}
             value={t.title}
             maxLength={160}
-            placeholder={t.kind === 'project' ? 'e.g. Annual shutdown planning' : 'What needs to be done?'}
+            placeholder={purchasing ? 'What are you following up?' : t.kind === 'project' ? 'e.g. Annual shutdown planning' : 'Describe the malfunction'}
             onChange={(e) => set('title', e.target.value)}
           />
         </label>
@@ -182,6 +201,30 @@ export function TaskEditor(props: {
             onChange={(e) => set('nextAction', opt(e.target.value))}
           />
         </label>
+        </fieldset>
+        {props.task.status === 'done' && <section className="completion-record" aria-label="Completion details">
+          <h3>Completion details</h3>
+          <p><b>{outcomeLabel(props.task)}</b></p>
+          <p className="completion-note" dir="auto">{props.task.completionNote || 'No completion description recorded.'}</p>
+        </section>}
+        <fieldset className="editor-section"><legend>Equipment & location</legend>
+        <div className="grid3">
+          <label className="field">
+            <span>Equipment name</span>
+            <input value={t.equipmentName ?? ''} placeholder="e.g. Huber chiller" maxLength={120} onChange={(e) => set('equipmentName', opt(e.target.value))} />
+          </label>
+          <label className="field">
+            <span>Equipment no.</span>
+            <input value={t.equipmentNumber ?? ''} placeholder="e.g. CH-02" maxLength={60} onChange={(e) => set('equipmentNumber', opt(e.target.value))} />
+          </label>
+          <label className="field">
+            <span>Room</span>
+            <input value={t.room ?? ''} placeholder="e.g. 104" maxLength={60} onChange={(e) => set('room', opt(e.target.value))} />
+          </label>
+        </div>
+        <label className="field"><span>Area</span><input value={t.area ?? ''} placeholder="e.g. Production · HVAC" onChange={(e) => set('area', opt(e.target.value))} /></label>
+        </fieldset>
+        <fieldset className="editor-section"><legend>Schedule & priority</legend>
         <Segmented<Priority>
           label="Priority"
           value={t.priority}
@@ -191,7 +234,7 @@ export function TaskEditor(props: {
         <div className="grid2">
           {t.kind === 'task' ? (
             <label className="field">
-              <span>Work due date</span>
+              <span>{purchasing ? 'Expected date (optional)' : 'Work due date'}</span>
               <input type="date" value={t.dueDate ?? ''} onChange={(e) => set('dueDate', opt(e.target.value))} />
             </label>
           ) : (
@@ -205,17 +248,19 @@ export function TaskEditor(props: {
             <select value={t.status} onChange={(e) => set('status', e.target.value as Status)}>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_LABEL[s]}
+                  {purchasing && s === 'todo' ? 'Open' : purchasing && s === 'done' ? 'Closed' : STATUS_LABEL[s]}
                 </option>
               ))}
             </select>
           </label>
         </div>
+        </fieldset>
+        <fieldset className="editor-section"><legend>Responsibility & follow-up</legend>
         <Segmented<Owner>
           label="Responsible"
           value={t.owner}
           options={[
-            { value: 'me', label: 'Me' },
+            { value: 'me', label: getMyName() },
             { value: 'other', label: 'Someone else' },
           ]}
           onChange={(v) => set('owner', v)}
@@ -254,19 +299,6 @@ export function TaskEditor(props: {
             </label>
           </div>
         )}
-        <details className="more-fields" open={!props.isNew && hasDetails}>
-          <summary>More details</summary>
-          <div className="more-grid">
-            <div className="grid2">
-              <label className="field">
-                <span>Area / equipment</span>
-                <input value={t.area ?? ''} placeholder="e.g. Production · AHU-02" onChange={(e) => set('area', opt(e.target.value))} />
-              </label>
-              <label className="field">
-                <span>Requested by</span>
-                <input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} />
-              </label>
-            </div>
             {t.owner === 'me' && (
               <>
                 {contactSelect}
@@ -279,6 +311,11 @@ export function TaskEditor(props: {
                 )}
               </>
             )}
+        <label className="field"><span>Requested by</span><input value={t.requester ?? ''} placeholder="e.g. QA" onChange={(e) => set('requester', opt(e.target.value))} /></label>
+        </fieldset>
+        <details className="more-fields" open={!props.isNew && hasDetails}>
+          <summary>Blockers, management & notes</summary>
+          <div className="more-grid">
             <label className="field">
               <span>Blocker (marks the task as Blocked)</span>
               <input value={t.blocker ?? ''} placeholder="e.g. No purchase order yet" onChange={(e) => set('blocker', opt(e.target.value))} />
@@ -297,6 +334,12 @@ export function TaskEditor(props: {
             </label>
           </div>
         </details>
+        {!props.isNew && (
+          <p className="subtle" data-testid="task-age">
+            Created {shortDate(createdDate(t), '')} · {daysLabel(daysOpen(t, todayISO()))}
+            {t.status === 'done' && t.completedAt ? ` · closed ${shortDate(todayISO(new Date(t.completedAt)), '')}` : ''}
+          </p>
+        )}
         {t.outlook && (
           <div className={`linked${t.outlook.state === 'removed' ? ' removed' : ''}`}>
             {t.outlook.state === 'scheduled' && t.outlook.start
@@ -334,5 +377,9 @@ export function TaskEditor(props: {
         )}
       </form>
     </Sheet>
+    {completionDraft && <CompletionDialog task={completionDraft}
+      onConfirm={(details) => commit(complete(completionDraft, details), true, true)}
+      onClose={() => { setCompletionDraft(null); setT((current) => current.status === 'done' ? { ...current, status: props.task.status } : current); }} />}
+    </>
   );
 }

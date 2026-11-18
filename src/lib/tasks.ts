@@ -1,5 +1,6 @@
 import type { Contact, DateOnly, FollowUpEntry, Priority, Task } from '../types';
-import { addDays, relativeDate, shortDate, todayISO } from './dates';
+import { addDays, daysBetween, relativeDate, shortDate, todayISO } from './dates';
+import { getMyName } from './settings';
 
 export const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -99,8 +100,13 @@ export function newContact(partial: Partial<Contact> = {}): Contact {
 
 const touch = (t: Task): Task => ({ ...t, updatedAt: new Date().toISOString() });
 
-export function complete(t: Task): Task {
-  return touch({ ...t, status: 'done', completedAt: new Date().toISOString() });
+export interface CompletionDetails { note: string; solved: boolean }
+
+export function complete(t: Task, details?: CompletionDetails): Task {
+  if (details && !details.note.trim()) throw new Error('Describe what was done before closing the task.');
+  return touch({ ...t, status: 'done', completedAt: new Date().toISOString(),
+    ...(details ? { completionNote: details.note.trim(), solved: details.solved } : {}),
+  });
 }
 
 export function reopen(t: Task): Task {
@@ -108,7 +114,7 @@ export function reopen(t: Task): Task {
 }
 
 export function setArchived(t: Task, archived: boolean): Task {
-  return touch({ ...t, archived });
+  return touch({ ...t, archived, ...(!archived ? { archiveReason: undefined } : {}) });
 }
 
 /** Records a follow-up. Deliberately does not change status or completion. */
@@ -123,7 +129,7 @@ export function searchTasks(tasks: Task[], query: string, contacts: Contact[]): 
   const byId = new Map(contacts.map((c) => [c.id, c]));
   return tasks.filter((t) => {
     const c = t.contactId ? byId.get(t.contactId) : undefined;
-    return [t.title, t.area, t.requester, t.assignee, t.notes, t.nextAction, c?.name, c?.company]
+    return [t.title, t.referenceNumber, t.area, t.room, t.equipmentName, t.equipmentNumber, t.requester, t.assignee, t.notes, t.nextAction, t.waitingFor, c?.name, c?.company]
       .filter(Boolean)
       .some((s) => s!.toLowerCase().includes(q));
   });
@@ -131,7 +137,7 @@ export function searchTasks(tasks: Task[], query: string, contacts: Contact[]): 
 
 /** Who-is-doing-it text for a row. */
 export function ownerLabel(t: Task, contacts: Contact[]): string {
-  if (t.owner === 'me') return 'Me';
+  if (t.owner === 'me') return getMyName();
   const c = contacts.find((x) => x.id === t.contactId);
   return t.assignee || c?.company || c?.name || 'Someone else';
 }
@@ -165,11 +171,14 @@ export function doneToday(tasks: Task[], today: DateOnly): Task[] {
     .sort((a, b) => (b.completedAt! > a.completedAt! ? 1 : -1));
 }
 
-export type QuickAction = 'start' | 'waiting' | 'todo' | 'done' | 'tomorrow' | 'nextweek' | 'high' | 'normal';
+export type QuickAction = 'start' | 'waiting' | 'todo' | 'done' | 'tomorrow' | 'nextweek' | 'high' | 'normal' | 'archive' | 'duplicate' | 'restore';
 
 export function applyQuick(t: Task, action: QuickAction, today: DateOnly): Task {
   const base = { ...t, updatedAt: new Date().toISOString() };
   switch (action) {
+    case 'archive': return { ...base, archived: true };
+    case 'duplicate': return { ...base, archived: true, archiveReason: 'duplicate' };
+    case 'restore': return { ...base, archived: false, archiveReason: undefined };
     case 'start':
       return { ...base, status: 'in_progress' };
     case 'waiting':
@@ -319,4 +328,32 @@ export function needsDetails(t: Task): string | undefined {
   if (t.status === 'waiting' && !t.nextFollowUp) return 'Add a follow-up date';
   if (!t.nextAction && (t.kind === 'project' || t.status === 'waiting')) return 'Add a next action';
   return undefined;
+}
+
+// ---------- Equipment and age ----------
+
+/** "Huber chiller · CH-02 · Room 104" from whichever parts are recorded. */
+export function equipmentText(t: Task): string {
+  const room = t.room ? (/^\d/.test(t.room) ? `Room ${t.room}` : t.room) : '';
+  return [t.equipmentName, t.equipmentNumber, room].filter(Boolean).join(' · ');
+}
+
+/** Israel date the task was created. */
+export const createdDate = (t: Task): DateOnly => todayISO(new Date(t.createdAt));
+export const closedDate = (t: Task): DateOnly | undefined => (t.completedAt ? todayISO(new Date(t.completedAt)) : undefined);
+
+/** Days the task has been open: until today, or until it was completed. */
+export function daysOpen(t: Task, today: DateOnly): number {
+  const end = t.status === 'done' ? (closedDate(t) ?? today) : today;
+  return Math.max(0, daysBetween(createdDate(t), end));
+}
+
+export const daysLabel = (n: number) => (n === 0 ? 'opened today' : n === 1 ? '1 day open' : `${n} days open`);
+
+/** Tasks completed within the last `days` calendar days including today (Israel dates), newest first. */
+export function closedWithin(tasks: Task[], today: DateOnly, days = 7): Task[] {
+  const from = addDays(today, -(days - 1));
+  return tasks
+    .filter((t) => t.status === 'done' && t.completedAt && closedDate(t)! >= from && closedDate(t)! <= today)
+    .sort((a, b) => (b.completedAt! > a.completedAt! ? 1 : -1));
 }

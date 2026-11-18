@@ -25,6 +25,8 @@ export function demoData(): Dataset {
       newTask({ title: 'Update PM checklist for WFI loop', area: 'Utilities · WFI', priority: 'Normal', dueDate: addDays(today, -2) }),
       newTask({
         title: 'Review compressor quotation',
+        category: 'quotation',
+        referenceNumber: 'QT-2026-018',
         area: 'Utilities',
         dueDate: addDays(today, 2),
         owner: 'other',
@@ -32,7 +34,7 @@ export function demoData(): Dataset {
         status: 'waiting',
         nextFollowUp: addDays(today, 2),
       }),
-      newTask({ title: 'Order spare belts for AHU-05', area: 'HVAC', priority: 'Low' }),
+      newTask({ title: 'Order spare belts for AHU-05', category: 'purchase_order', referenceNumber: 'PO-2026-024', area: 'HVAC', priority: 'Low', nextFollowUp: today }),
       newTask({
         kind: 'project',
         title: 'Annual shutdown planning',

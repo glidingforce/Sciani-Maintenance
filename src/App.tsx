@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Handshake, ListTodo, Sun, User } from 'lucide-react';
+import { Handshake, ListTodo, ShoppingCart, Sun, User } from 'lucide-react';
 import type { Task } from './types';
 import { todayISO } from './lib/dates';
 import { applyQuick, complete, newTask, reopen, type QuickAction } from './lib/tasks';
@@ -16,17 +16,20 @@ import { DataPanel } from './components/DataPanel';
 import { SignIn } from './components/SignIn';
 import { Sheet } from './components/Sheet';
 import { ReportDialog } from './components/ReportDialog';
+import { CompletionDialog } from './components/CompletionDialog';
+import { isPurchasing } from './lib/categories';
 
-type Page = 'today' | 'tasks' | 'contacts';
+type Page = 'today' | 'tasks' | 'purchasing' | 'contacts';
 const PAGES: { id: Page; label: string; short: string; Icon: typeof Sun }[] = [
   { id: 'today', label: 'Today', short: 'Today', Icon: Sun },
-  { id: 'tasks', label: 'All Tasks', short: 'All Tasks', Icon: ListTodo },
+  { id: 'tasks', label: 'Malfunctions', short: 'Malfunctions', Icon: ListTodo },
+  { id: 'purchasing', label: 'Purchasing', short: 'Purchasing', Icon: ShoppingCart },
   { id: 'contacts', label: 'Contacts', short: 'Contacts', Icon: Handshake },
 ];
 
 const pageFromHash = (): Page => {
   const h = window.location.hash.replace(/^#\/?/, '');
-  return h === 'tasks' || h === 'contacts' ? h : 'today';
+  return h === 'tasks' || h === 'purchasing' || h === 'contacts' ? h : 'today';
 };
 
 function nameFrom(source?: string | null) {
@@ -45,6 +48,7 @@ export default function App() {
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [followUpFor, setFollowUpFor] = useState<Task | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Task | null>(null);
+  const [completing, setCompleting] = useState<Task | null>(null);
   const [showData, setShowData] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showOutlookSetup, setShowOutlookSetup] = useState(false);
@@ -80,6 +84,7 @@ export default function App() {
 
   const quick = useCallback(
     async (t: Task, a: QuickAction) => {
+      if (a === 'done') { setCompleting(t); return; }
       const next = applyQuick(t, a, today);
       // "Waiting on someone…" opens the task so you can say for whom and for what.
       if ((await ws.saveTask(next)) && a === 'waiting') setEditing({ task: next, isNew: false });
@@ -87,7 +92,10 @@ export default function App() {
     [ws.saveTask, today], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const toggle = useCallback((t: Task) => void ws.saveTask(t.status === 'done' ? reopen(t) : complete(t)), [ws.saveTask]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = useCallback((t: Task) => {
+    if (t.status === 'done') void ws.saveTask(reopen(t));
+    else setCompleting(t);
+  }, [ws.saveTask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Saves edits; if the task's title changed and it has a linked event whose
    * subject still matched the old title, the event subject is updated too. */
@@ -110,7 +118,7 @@ export default function App() {
 
   const who = nameFrom(ws.account?.name ?? ws.account?.username);
   const openTask = (t: Task) => setEditing({ task: t, isNew: false });
-  const addTask = () => setEditing({ task: newTask(), isNew: true });
+  const addTask = () => setEditing({ task: newTask({ category: page === 'purchasing' ? 'purchase_order' : 'malfunction' }), isNew: true });
   const latest = (t: Task) => ws.data.tasks.find((x) => x.id === t.id) ?? t;
 
   const header = (
@@ -126,7 +134,7 @@ export default function App() {
         </nav>
         <div className="top-right">
           <span className={`mode-badge${ws.mode === 'demo' ? ' demo' : ''}`} data-testid="sync-status">
-            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : ws.save.kind === 'saving' ? 'Saving…' : 'OneDrive · saved'}
+            {ws.mode === 'demo' ? 'Demo data' : ws.mode === 'local' ? 'This device only' : !ws.account || ws.load === 'needs-sign-in' ? 'Not connected' : ws.save.kind === 'error' ? 'Changes not saved' : ws.load === 'error' ? 'Connection error' : ws.load === 'loading' ? 'Connecting…' : ws.save.kind === 'saving' ? 'Saving…' : 'OneDrive · saved'}
           </span>
           <button type="button" className="person" aria-label="Data and accounts" onClick={() => setShowData(true)}>
             <span>{who.initials || <User className="icon" />}</span>
@@ -142,7 +150,7 @@ export default function App() {
     ws.mode === 'demo' ? (
       <div className="notice-wrap">
         <div className="notice" role="note">
-          <b>Demo data.</b> Sample records, kept separate from your real tasks.
+          <b>Demo data.</b> Sample records only.
           <button type="button" className="linkish" onClick={() => ws.setDemo(false)}>
             Exit demo
           </button>
@@ -177,12 +185,12 @@ export default function App() {
       </div>
     );
   } else {
-    const common = { contacts: ws.data.contacts, today, onOpen: openTask, onToggle: toggle, onQuick: quick };
+    const common = { contacts: ws.data.contacts, today, onOpen: openTask, onToggle: toggle, onQuick: quick, onLog: setFollowUpFor };
     body =
       page === 'today' ? (
         <Today
           {...common}
-          tasks={ws.data.tasks}
+          tasks={ws.data.tasks.filter((t) => !isPurchasing(t))}
           storageNote={storageNote}
           onAdd={addTask}
           onReport={() => setShowReport(true)}
@@ -190,8 +198,8 @@ export default function App() {
           onLog={setFollowUpFor}
           outlookSlot={ws.mode === 'demo' ? null : <OutlookPanel outlook={outlook} onSetupInfo={() => setShowOutlookSetup(true)} />}
         />
-      ) : page === 'tasks' ? (
-        <AllTasks {...common} tasks={ws.data.tasks} onAdd={addTask} onReport={() => setShowReport(true)} />
+      ) : page === 'tasks' || page === 'purchasing' ? (
+        <AllTasks key={page} {...common} purchasing={page === 'purchasing'} tasks={ws.data.tasks} onAdd={addTask} onReport={() => setShowReport(true)} />
       ) : (
         <Contacts contacts={ws.data.contacts} tasks={ws.data.tasks} onSave={ws.saveContact} onDelete={ws.deleteContact} onOpenTask={openTask} />
       );
@@ -238,6 +246,9 @@ export default function App() {
           }}
         />
       )}
+      {completing && <CompletionDialog key={completing.id} task={latest(completing)}
+        onConfirm={(details) => ws.saveTask(complete(latest(completing), details))}
+        onClose={() => setCompleting(null)} />}
       {followUpFor && (
         <FollowUpDialog
           task={latest(followUpFor)}
@@ -259,7 +270,7 @@ export default function App() {
         />
       )}
       {showData && <DataPanel ws={ws} onClose={() => setShowData(false)} />}
-      {showReport && <ReportDialog tasks={ws.data.tasks} contacts={ws.data.contacts} today={today} onClose={() => setShowReport(false)} />}
+      {showReport && <ReportDialog category={page === 'purchasing' ? 'purchasing' : page === 'contacts' ? '' : 'malfunction'} tasks={ws.data.tasks} contacts={ws.data.contacts} today={today} onClose={() => setShowReport(false)} />}
       {showOutlookSetup && (
         <Sheet title="Outlook needs the web address" onClose={() => setShowOutlookSetup(false)}>
           <div className="form">

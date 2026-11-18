@@ -1,5 +1,5 @@
 import type { Contact, Dataset, Task } from '../types';
-import { SAFETY_KEYS, SaveError, type Repo } from './repo';
+import { SAFETY_KEYS, SaveError, preUpgradeKey, type Repo } from './repo';
 import { SCHEMA_VERSION, convertToCurrent } from '../lib/backup';
 
 export const DATA_FILE = 'maintenance-data.json';
@@ -91,8 +91,9 @@ export class OneDriveRepo implements Repo {
       // Older file: keep an untouched copy on this device. The file itself is only
       // rewritten (in the new format) on the next save, and OneDrive keeps its history.
       try {
-        if (localStorage.getItem(SAFETY_KEYS.preUpgradeCloud) === null)
-          localStorage.setItem(SAFETY_KEYS.preUpgradeCloud, JSON.stringify({ savedAt: new Date().toISOString(), raw: text }));
+        const key = preUpgradeKey(SAFETY_KEYS.preUpgradeCloud, typeof version === 'number' ? version : 'none');
+        if (localStorage.getItem(key) === null)
+          localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), fromVersion: version ?? 1, raw: text }));
       } catch {
         /* storage unavailable: OneDrive version history still has the old file */
       }
